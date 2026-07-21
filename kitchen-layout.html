@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cabinet Studio Layout</title>
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <style>
+    :root {
+      --font-heading: "Outfit", "Segoe UI", sans-serif;
+      --font-body: "Manrope", "Segoe UI", sans-serif;
+      --bg: #eef5ff;
+      --bg-soft: #f7faff;
+      --panel: rgba(255, 255, 255, 0.96);
+      --panel-strong: #ffffff;
+      --line: rgba(46, 82, 148, 0.1);
+      --line-strong: rgba(46, 82, 148, 0.18);
+      --text: #17233a;
+      --muted: #6b7a96;
+      --accent: #3c61ff;
+      --accent-deep: #1b2f78;
+      --accent-soft: #dfe8ff;
+      --shadow: 0 12px 24px rgba(92, 126, 181, 0.08);
+      --radius-xl: 18px;
+      --radius-lg: 12px;
+      --radius-md: 8px;
+      --radius-sm: 6px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font-body);
+      background:
+        radial-gradient(circle at top left, rgba(111, 163, 255, 0.24), transparent 26%),
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.86), transparent 32%),
+        linear-gradient(180deg, #f8fbff 0%, #eaf2ff 54%, #f3f7ff 100%);
+      color: var(--text);
+    }
+
+    body { overflow: hidden; }
+
+    #app {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 360px;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 10px;
+      height: 100vh;
+      padding: 10px;
+    }
+
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 48px;
+      padding: 8px 12px;
+      border: 1px solid rgba(61, 95, 171, 0.1);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 6px 16px rgba(97, 130, 186, 0.08);
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .brand-logo-slot {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, #ffffff, #eef4ff);
+      border: 1px solid rgba(61, 95, 171, 0.12);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    .brand-logo-slot img {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .brand-copy {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
+    .company-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .product-name {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .topbar-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 30px;
+      padding: 0 12px;
+      border: 1px solid rgba(61, 95, 171, 0.12);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .topbar-btn:hover {
+      background: #ffffff;
+      border-color: rgba(61, 95, 171, 0.22);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(97, 130, 186, 0.08);
+    }
+
+    .topbar-btn i {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .panel-shell,
+    #viewport-panel,
+    #layout-list {
+      min-height: 0;
+      border: 1px solid rgba(61, 95, 171, 0.08);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 255, 0.98));
+    }
+
+    .panel-shell {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid rgba(61, 95, 171, 0.08);
+    }
+
+    .panel-head h1,
+    .panel-head h3 {
+      font-family: var(--font-heading);
+      font-size: 16px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      font-weight: 600;
+    }
+
+    .panel-meta {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .panel-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .panel-scroll::-webkit-scrollbar,
+    #layout-list-body::-webkit-scrollbar { width: 8px; }
+
+    .panel-scroll::-webkit-scrollbar-thumb,
+    #layout-list-body::-webkit-scrollbar-thumb {
+      background: rgba(46, 82, 148, 0.16);
+      border-radius: 999px;
+    }
+
+    .card {
+      border: 1px solid rgba(61, 95, 171, 0.08);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 18px rgba(95, 126, 178, 0.06);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .card h4 {
+      font-family: var(--font-heading);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    .card p,
+    .helper {
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label,
+    .field span {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #61739a;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      min-height: 38px;
+      padding: 0 12px;
+      border: 1px solid rgba(61, 95, 171, 0.12);
+      border-radius: 10px;
+      background: #ffffff;
+      color: var(--text);
+      font: inherit;
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: rgba(60, 97, 255, 0.4);
+      box-shadow: 0 0 0 3px rgba(60, 97, 255, 0.08);
+    }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      border: 1px solid rgba(61, 95, 171, 0.1);
+      border-radius: 10px;
+      background: #f8fbff;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .metric span {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #7081a4;
+    }
+
+    .metric strong {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    #viewport-panel {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      background: rgba(255, 255, 255, 0.86);
+    }
+
+    .viewport-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(61, 95, 171, 0.08);
+      background: rgba(255, 255, 255, 0.88);
+    }
+
+    .viewport-toolbar h2 {
+      font-family: var(--font-heading);
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .viewport-toolbar p {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .viewport-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 32px;
+      padding: 0 12px;
+      border: 1px solid rgba(61, 95, 171, 0.1);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .chip i { color: var(--muted); }
+
+    #layout-viewport {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.96), rgba(240, 246, 255, 0.94));
+    }
+
+    #layout-viewport canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .viewport-overlay {
+      position: absolute;
+      left: 14px;
+      bottom: 14px;
+      padding: 10px 12px;
+      border: 1px solid rgba(61, 95, 171, 0.08);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 10px 18px rgba(95, 126, 178, 0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-width: min(340px, calc(100% - 28px));
+      pointer-events: none;
+    }
+
+    .viewport-overlay strong {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .viewport-overlay span {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    #layout-list {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    #layout-list-body {
+      min-height: 0;
+      overflow: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .cabinet-row {
+      border: 1px solid rgba(61, 95, 171, 0.1);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+
+    .cabinet-row:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(92, 126, 181, 0.08);
+    }
+
+    .cabinet-row.active {
+      border-color: rgba(60, 97, 255, 0.34);
+      box-shadow: 0 0 0 3px rgba(60, 97, 255, 0.08);
+    }
+
+    .cabinet-row-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cabinet-row-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .cabinet-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 62px;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #345186;
+      background: #e8efff;
+    }
+
+    .cabinet-row-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .empty-state {
+      min-height: 120px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border: 1px dashed rgba(61, 95, 171, 0.16);
+      border-radius: 12px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.72);
+      padding: 16px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .warn {
+      border: 1px solid rgba(232, 163, 54, 0.28);
+      background: rgba(255, 239, 213, 0.74);
+      color: #8a5e12;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .inline-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .mini-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 32px;
+      padding: 0 12px;
+      border: 1px solid rgba(61, 95, 171, 0.12);
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .mini-btn:hover {
+      border-color: rgba(60, 97, 255, 0.24);
+      background: #f9fbff;
+    }
+
+    @media (max-width: 1280px) {
+      #app {
+        grid-template-columns: 300px minmax(0, 1fr);
+      }
+
+      #layout-list {
+        grid-column: 1 / -1;
+        min-height: 260px;
+      }
+    }
+
+    @media (max-width: 960px) {
+      body { overflow: auto; }
+
+      #app {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto minmax(480px, 60vh) auto;
+        height: auto;
+        min-height: 100vh;
+      }
+
+      .topbar,
+      .panel-shell,
+      #viewport-panel,
+      #layout-list {
+        min-height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="topbar">
+      <div class="topbar-brand">
+        <div class="brand-logo-slot" aria-hidden="true">
+          <img src="assets/logo.svg" alt="">
+        </div>
+        <div class="brand-copy">
+          <span class="company-name">Cabinet</span>
+          <span class="product-name">Kitchen Layout</span>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="topbar-btn" type="button" id="layout-import-btn">
+          <i class="fa-solid fa-file-import" aria-hidden="true"></i>
+          <span>Import Project</span>
+        </button>
+        <button class="topbar-btn" type="button" id="layout-save-btn">
+          <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+          <span>Save Project</span>
+        </button>
+        <button class="topbar-btn" type="button" id="layout-auto-btn">
+          <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+          <span>Auto Arrange</span>
+        </button>
+        <button class="topbar-btn" type="button" id="back-to-studio-btn">
+          <i class="fa-solid fa-cubes" aria-hidden="true"></i>
+          <span>Cabinet Studio</span>
+        </button>
+      </div>
+    </div>
+
+    <aside class="panel-shell">
+      <div class="panel-head">
+        <h1>Room Setup</h1>
+        <span class="panel-meta" id="layout-project-name">Kitchen Project</span>
+      </div>
+      <div class="panel-scroll">
+        <div class="card">
+          <h4>Kitchen Envelope</h4>
+          <p>Set the room size and the standard underside height for wall cabinets. Base and tall cabinets sit on the floor; wall cabinets mount to the wall row above.</p>
+          <div class="field-grid">
+            <div class="field">
+              <label for="room-width-input">Room Width</label>
+              <input id="room-width-input" type="number" min="1000" step="10">
+            </div>
+            <div class="field">
+              <label for="room-depth-input">Room Depth</label>
+              <input id="room-depth-input" type="number" min="1000" step="10">
+            </div>
+            <div class="field">
+              <label for="room-height-input">Room Height</label>
+              <input id="room-height-input" type="number" min="1800" step="10">
+            </div>
+            <div class="field">
+              <label for="wall-bottom-input">Wall Cabinet Bottom</label>
+              <input id="wall-bottom-input" type="number" min="600" step="10">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Project Summary</h4>
+          <div class="metric-row">
+            <div class="metric">
+              <span>Cabinets</span>
+              <strong id="metric-cabinets">0</strong>
+            </div>
+            <div class="metric">
+              <span>Placed Units</span>
+              <strong id="metric-instances">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Selected Cabinet</h4>
+          <div id="selected-cabinet-card" class="helper">Select a cabinet in the scene or list to adjust its placement. Right click a cabinet in the viewport to rotate it 90°.</div>
+          <div id="selected-cabinet-fields" class="field-grid" hidden>
+            <div class="field">
+              <span>Name</span>
+              <input id="selected-name" type="text" readonly>
+            </div>
+            <div class="field">
+              <span>Category</span>
+              <input id="selected-category" type="text" readonly>
+            </div>
+            <div class="field">
+              <label for="selected-x-input">Position X</label>
+              <input id="selected-x-input" type="number" step="10">
+            </div>
+            <div class="field">
+              <label for="selected-z-input">Position Z</label>
+              <input id="selected-z-input" type="number" step="10">
+            </div>
+            <div class="field">
+              <label for="selected-rotation-input">Rotation</label>
+              <select id="selected-rotation-input">
+                <option value="0">0°</option>
+                <option value="90">90°</option>
+                <option value="180">180°</option>
+                <option value="270">270°</option>
+              </select>
+            </div>
+            <div class="field">
+              <span>Size</span>
+              <input id="selected-size" type="text" readonly>
+            </div>
+          </div>
+          <div class="inline-actions">
+            <button class="mini-btn" type="button" id="rotate-selected-btn">
+              <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+              <span>Rotate 90°</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="warn">
+          Drag cabinets to rearrange them. Rotation swaps the footprint so corner planning is easier, but collision checking is not enforced yet.
+        </div>
+      </div>
+    </aside>
+
+    <section id="viewport-panel">
+      <div class="viewport-toolbar">
+        <div>
+          <h2>Kitchen Layout View</h2>
+          <p id="layout-subtitle">Import a project JSON to start laying out cabinets in the room.</p>
+        </div>
+        <div class="viewport-tools">
+          <div class="chip"><i class="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"></i><span>Drag to place</span></div>
+          <div class="chip"><i class="fa-solid fa-arrow-rotate-right" aria-hidden="true"></i><span>Right click to rotate</span></div>
+        </div>
+      </div>
+      <div id="layout-viewport">
+        <div class="viewport-overlay">
+          <strong id="overlay-title">No cabinet selected</strong>
+          <span id="overlay-copy">Base and tall cabinets auto-start on the floor. Wall cabinets auto-start on the wall row at the configured wall height.</span>
+        </div>
+      </div>
+    </section>
+
+    <aside id="layout-list">
+      <div class="panel-head">
+        <h3>Cabinet Instances</h3>
+        <span class="panel-meta" id="layout-instance-count">0 units</span>
+      </div>
+      <div id="layout-list-body"></div>
+    </aside>
+  </div>
+
+  <script type="module" src="js/kitchen-layout.js?v=20260721c"></script>
+</body>
+</html>

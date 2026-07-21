@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Cabinet Studio logo">
+  <rect width="128" height="128" rx="24" fill="#f8f5ee"/>
+  <path d="M24 43 62 22l42 22-40 22Z" fill="#ffffff" stroke="#1f2328" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M24 43v50l40 18V66Z" fill="#fffdfa" stroke="#1f2328" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M64 66 104 44v50l-40 17Z" fill="#d6b073" stroke="#1f2328" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M64 66v45" fill="none" stroke="#1f2328" stroke-width="4" stroke-linecap="round"/>
+  <path d="M84 55v41" fill="none" stroke="#1f2328" stroke-width="4" stroke-linecap="round"/>
+  <path d="M64 89 104 74" fill="none" stroke="#b48c55" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="78" cy="82" r="2.8" fill="#1f2328"/>
+  <circle cx="91" cy="77" r="2.8" fill="#1f2328"/>
+  <path d="M29 96 64 112l35-15" fill="none" stroke="#1f2328" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
