@@ -12,7 +12,7 @@ function normalizeOptions(options = {}) {
   return {
     sheetWidth: clampPositive(options.sheetWidth, 2440),
     sheetHeight: clampPositive(options.sheetHeight, 1220),
-    gap: clampNonNegative(options.gap ?? options.kerf, 3.2),
+    gap: clampNonNegative(options.gap ?? options.kerf, 20),
     allowRotation: options.allowRotation !== false,
   };
 }

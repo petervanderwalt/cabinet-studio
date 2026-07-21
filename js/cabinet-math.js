@@ -39,7 +39,7 @@ export function defaultCabinet() {
     height: 720,
     depth: 560,
     hasTop: false,
-    backMount: 'grooved-in',
+    backMount: 'applied-rear',
     toeKick: { height: 100, setback: 75 },
     doors: { count: 2, hingeSide: 'both' },
     drawers: { count: 0, heights: [], sideClearance: 10, sideThickness: 12, bottomThickness: 6 },
@@ -59,7 +59,7 @@ export function defaultCabinet() {
       topRailWidth: 38,
       bottomRailWidth: 38,
     },
-    shelves: { count: 1, thickness: null },
+    shelves: { count: 2, thickness: null },
     overlay: { type: 'full-overlay', amount: 18 },
     reveal: 3,
     hardware: {
@@ -78,7 +78,7 @@ export function defaultCabinet() {
     nesting: {
       sheetWidth: 2440,
       sheetHeight: 1220,
-      gap: 3.2,
+      gap: 20,
       allowRotation: true,
     },
   };

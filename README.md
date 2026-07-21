@@ -49,6 +49,12 @@ Larger jobs can be assembled as multi-cabinet projects, with copy counts for rep
 
 ![Multi-cabinet project setup](docs/multi-cabinet-projects.png)
 
+## Upcoming: Kitchen Layout Planning
+
+An upcoming layout-planning view will extend Cabinet Studio from single-cabinet configuration into room-level arrangement, making it possible to place cabinets in a broader kitchen layout and render the overall plan before fabrication.
+
+![Kitchen layout planning preview](docs/kitchen-layout.png)
+
 ## Manufacturing Export
 
 Cabinet Studio can export individual DXFs, nested DXFs, and a manufacturing ZIP bundle so the machining package is ready to hand off or archive as a single deliverable.

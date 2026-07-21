@@ -151,7 +151,7 @@ export class CabinetForm {
     if (mode === 'doors') {
       if ((this.config.doors?.count ?? 0) <= 0) this.config.doors.count = 2;
       if ((this.config.shelves?.count ?? 0) < 0) this.config.shelves.count = 0;
-      if (this.config.shelves?.count == null) this.config.shelves.count = 1;
+      if (this.config.shelves?.count == null) this.config.shelves.count = 2;
     } else {
       if ((this.config.drawers?.count ?? 0) <= 0) this.config.drawers.count = 3;
       if ((this.config.drawers?.heights?.length ?? 0) !== this.config.drawers.count) {

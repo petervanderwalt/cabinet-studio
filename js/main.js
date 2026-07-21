@@ -528,7 +528,7 @@ function buildNestingControls(config) {
       <div class="nesting-controls-grid nesting-settings-grid">
         ${buildNestingNumberField('Sheet length', 'sheetWidth', nesting.sheetWidth ?? 2440, 'mm', 100, 1)}
         ${buildNestingNumberField('Sheet width', 'sheetHeight', nesting.sheetHeight ?? 1220, 'mm', 100, 1)}
-        ${buildNestingNumberField('Nesting gap', 'gap', nesting.gap ?? 3.2, 'mm', 0, 0.1)}
+        ${buildNestingNumberField('Nesting gap', 'gap', nesting.gap ?? 20, 'mm', 0, 0.1)}
         ${buildNestingCheckboxField('Allow part rotation', 'allowRotation', nesting.allowRotation !== false)}
       </div>
     </section>
