@@ -14,6 +14,12 @@ const SECTION_ICONS = {
   'Hardware': 'fa-screwdriver-wrench',
 };
 
+const CATEGORY_DIMENSIONS = {
+  base: { width: 800, height: 720, depth: 560 },
+  wall: { width: 800, height: 720, depth: 320 },
+  tall: { width: 600, height: 2100, depth: 600 },
+};
+
 export class CabinetForm {
   constructor(container, onChange) {
     this.container = container;
@@ -188,6 +194,36 @@ export class CabinetForm {
     return JSON.parse(JSON.stringify(config));
   }
 
+  _applyCategoryDimensions(nextCategory) {
+    const nextPreset = CATEGORY_DIMENSIONS[nextCategory];
+    if (!nextPreset) return;
+
+    const matchedPreset = Object.values(CATEGORY_DIMENSIONS).find((preset) => (
+      this.config.width === preset.width
+      && this.config.height === preset.height
+      && this.config.depth === preset.depth
+    ));
+
+    if (!matchedPreset) return;
+    if (matchedPreset.width === nextPreset.width
+      && matchedPreset.height === nextPreset.height
+      && matchedPreset.depth === nextPreset.depth) return;
+
+    this.config.width = nextPreset.width;
+    this.config.height = nextPreset.height;
+    this.config.depth = nextPreset.depth;
+  }
+
+  _syncDimensionInputs() {
+    if (!this.form) return;
+    const widthInput = this.form.querySelector('[data-key="width"]');
+    const heightInput = this.form.querySelector('[data-key="height"]');
+    const depthInput = this.form.querySelector('[data-key="depth"]');
+    if (widthInput) widthInput.value = String(this.config.width);
+    if (heightInput) heightInput.value = String(this.config.height);
+    if (depthInput) depthInput.value = String(this.config.depth);
+  }
+
   // ---- Field groups ----
 
   _typeFields() {
@@ -203,10 +239,12 @@ export class CabinetForm {
       if (hasTopChk) {
         hasTopChk.checked = cat.value !== 'base';
       }
+      this.config.category = cat.value;
+      this._applyCategoryDimensions(cat.value);
+      this._syncDimensionInputs();
       if (this._frontMode() === 'drawers') {
         const drawerCountInput = this.form?.querySelector('[data-key="drawers.count"]');
         const drawerCount = Math.max(1, parseInt(drawerCountInput?.value ?? this.config.drawers.count, 10) || 1);
-        this.config.category = cat.value;
         this.config.drawers.count = drawerCount;
         this._autoDrawerHeights(drawerCount);
         if (this._drawerHeightsDiv) {

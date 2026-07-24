@@ -6,6 +6,8 @@ export const CARCASS_STOCKS = [
 ];
 
 export const REAR_STOCKS = [
+  { label: 'Melamine White', thickness: 18 },
+  { label: 'Birch Ply', thickness: 18 },
   { label: 'Hardboard White', thickness: 6 },
   { label: 'Hardboard Raw', thickness: 6 },
   { label: 'MDF White', thickness: 9 },
@@ -14,6 +16,7 @@ export const REAR_STOCKS = [
 
 export const FRONT_STOCKS = [
   { label: 'Melamine White', thickness: 18 },
+  { label: 'Birch Ply', thickness: 18 },
   { label: 'Oak Veneer', thickness: 18 },
   { label: 'Painted MDF', thickness: 22 },
   { label: 'Super Gloss', thickness: 18 },
