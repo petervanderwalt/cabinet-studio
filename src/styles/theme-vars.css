@@ -1,0 +1,12 @@
+/* SVG preview colours (referenced from inline styles in the React components). */
+:root {
+  --svg-panel-fill: #edf3ff;
+  --svg-panel-stroke: #7f91b1;
+  --svg-notch-fill: #f9fbff;
+  --svg-sheet-fill: #ffffff;
+  --svg-sheet-stroke: #7b8aa3;
+  --svg-part-fill: #f5f7fb;
+  --svg-part-stroke: #71819a;
+  --svg-text: #243247;
+  --svg-text-muted: #5d6d85;
+}
