@@ -1,7 +1,7 @@
 import { formatLength, isImperial, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { downloadProjectFile } from './dxf-writer.js?v=20261020h';
+import { downloadProjectFile } from './dxf-writer.js?v=20261020o';
 import {
   autoArrangeProject,
   createProjectFromConfig,

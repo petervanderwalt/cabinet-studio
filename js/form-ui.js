@@ -1,7 +1,7 @@
 import { additionalDrawerHeight, distributeDrawerHeights } from './drawer-heights.js';
 import { dimension, formatLength, getUnits, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 // form-ui.js - Build and manage the cabinet config form
-import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261020h';
+import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261020o';
 import { applyGlobalMaterialSelections, defaultStockMaterials } from './material-presets.js?v=20261020f';
 
 const SECTION_ICONS = {
@@ -333,7 +333,46 @@ export class CabinetForm {
       this._makeBlurb('Choose the door layout that suits this cabinet.'),
       this._makeField('Door layout', doorCount),
       this._makeField('Hinge side', hingeSide),
+      ...this._routedDetailFields('doors'),
     ];
+  }
+
+  _routedDetailFields(group) {
+    const detailStyle = this._createSelect([
+      { value: 'none', label: 'Plain (no detail)' },
+      { value: 'slats', label: 'Vertical slats (V-bit)' },
+      { value: 'rectangle', label: 'Rectangle' },
+      { value: 'clipped', label: 'Clipped corners' },
+      { value: 'rounded', label: 'Rounded corners' },
+      { value: 'inward-rounded', label: 'Inward rounded corners' },
+      { value: 'arch', label: 'Arched top' },
+      { value: 'cathedral', label: 'Cathedral top' },
+    ], { 'data-key': `${group}.detailStyle` });
+    detailStyle.value = this.config[group].detailStyle || 'none';
+    const inset = this._createInput('number', { 'data-key': `${group}.detailInset`, value: this.config[group].detailInset ?? (detailStyle.value === 'slats' ? 0 : getUnits() === 'imperial' ? 50.8 : 50), min: detailStyle.value === 'slats' ? 0 : 1, step: 1 });
+    const size = this._createInput('number', { 'data-key': `${group}.detailSize`, value: this.config[group].detailSize ?? 40, min: 1, step: 1 });
+    const spacing = this._createInput('number', { 'data-key': `${group}.detailSpacing`, value: this.config[group].detailSpacing ?? 50, min: 1, step: 1 });
+    const insetField = this._makeField('Detail inset from edges', inset, { unit: 'mm' });
+    const sizeField = this._makeField('Corner size / arch rise', size, { unit: 'mm' });
+    const spacingField = this._makeField('Slat line spacing (centre to centre)', spacing, { unit: 'mm' });
+    let previousStyle = detailStyle.value;
+    const syncDetailFields = () => {
+      const style = detailStyle.value;
+      const slats = style === 'slats';
+      if (style !== previousStyle) {
+        inset.value = String(slats ? 0 : getUnits() === 'imperial' ? 50.8 : 50);
+        lengthInput(inset);
+        previousStyle = style;
+      }
+      if (getUnits() !== 'imperial') inset.min = slats ? '0' : '1';
+      insetField.classList.toggle('hidden', style === 'none');
+      spacingField.classList.toggle('hidden', !slats);
+      sizeField.classList.toggle('hidden', !['clipped', 'rounded', 'inward-rounded', 'arch', 'cathedral'].includes(style));
+    };
+    detailStyle.addEventListener('input', syncDetailFields);
+    detailStyle.addEventListener('change', syncDetailFields);
+    syncDetailFields();
+    return [this._makeField('Routed detail', detailStyle), insetField, sizeField, spacingField];
   }
 
   _drawerDetailFields() {
@@ -360,18 +399,10 @@ export class CabinetForm {
       this._emitChange();
     });
 
-    const drawerSideClr = this._createInput('number', {
-      'data-key': 'drawers.sideClearance',
-      value: this.config.drawers.sideClearance ?? 10,
-      min: 3,
-      max: 30,
-      step: 0.5,
-    });
-
     return [
       this._makeField('Drawer count', drawerCount),
       this._makeField('Drawer front heights', drawerHeightsDiv),
-      this._makeField('Drawer slide thickness', drawerSideClr, { unit: 'mm' }),
+      ...this._routedDetailFields('drawers'),
     ];
   }
 
@@ -836,8 +867,7 @@ export class CabinetForm {
       this._makeField('Drawer handle centre offset down from top', drawerHandleTop, { unit: 'mm' }),
     );
     runnerContent.append(
-      this._makeField('Runner side clearance', sideClearance, { unit: 'mm' }),
-      this._makeInfoCard('Runner reference', 'Drawer runner hole layout follows the side clearance set here.'),
+      this._makeField('Drawer runner clearance per side', sideClearance, { unit: 'mm' }),
     );
 
     const switchTab = (active) => {

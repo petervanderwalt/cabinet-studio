@@ -320,6 +320,12 @@ export class CabinetViewport {
     mesh.receiveShadow = true;
     this._addEdgeHelper(mesh, geometry);
     this._addHoleMarkers(mesh, p);
+    for (const path of p.detailPaths || []) {
+      const points = path.map(point => new THREE.Vector3(point.x - p.cutWidth / 2, point.y - p.cutHeight / 2, -p.sizeZ / 2 - 0.3));
+      const DetailLine = p.detailPathsClosed === false ? THREE.Line : THREE.LineLoop;
+      const detail = new DetailLine(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x655044 }));
+      mesh.add(detail);
+    }
     mesh.position.set(p.posX, p.posY, p.posZ);
     return mesh;
   }

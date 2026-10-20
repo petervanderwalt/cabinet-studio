@@ -1,3 +1,4 @@
+import { doorDetailPath, doorSlatPaths } from './door-detail.js?v=20261020o';
 import { splitStockAppearance } from './material-presets.js?v=20261020f';
 // cabinet-math.js — Pure function: Cabinet config → Panel[]
 // No UI, no three.js — unit-testable in isolation.
@@ -50,8 +51,8 @@ export function defaultCabinet() {
     hasTop: false,
     backMount: 'applied-rear',
     toeKick: { height: 100, setback: 75 },
-    doors: { count: 2, hingeSide: 'both' },
-    drawers: { count: 0, heights: [], sideClearance: 10, sideThickness: 12, bottomThickness: 6 },
+    doors: { count: 2, hingeSide: 'both', detailStyle: 'none', detailInset: 50, detailSize: 40, detailSpacing: 50 },
+    drawers: { count: 0, heights: [], sideClearance: 10, sideThickness: 12, bottomThickness: 6, detailStyle: 'none', detailInset: 50, detailSize: 40, detailSpacing: 50 },
     materials: {
       caseMaterial: 'Carcass Melamine White',
       caseThickness: 18,
@@ -212,6 +213,8 @@ export function computePanels(cabinet) {
   // Both side panels computed with same feature layout (x=0 = front edge),
   // then the right side panel is mirrored (x → cutWidth - x) so its
   // inside-face layout matches the real part.
+  const capTop = !isWallCabinet(cabinet) && cabinet.hasTop;
+  const sideHeight = H - (capTop ? T : 0);
   const sideCutDepth = sideDepth - ffDepthOff;
   for (const side of ['left', 'right']) {
     const isLeft = side === 'left';
@@ -231,20 +234,20 @@ export function computePanels(cabinet) {
       color: caseColor,
       materialLabel: caseMaterialLabel,
       cutWidth: sideCutDepth,
-      cutHeight: H,
+      cutHeight: sideHeight,
       cutThickness: T,
       posX: isLeft ? T / 2 : W - T / 2,
-      posY: H / 2,
+      posY: sideHeight / 2,
       posZ: ffDepthOff + sideCutDepth / 2,
       sizeX: T,
-      sizeY: H,
+      sizeY: sideHeight,
       sizeZ: sideCutDepth,
       notches: notchArr,
       grooves: cabinet.backMount === 'grooved-in' ? [{
         x: Math.max(0, sideCutDepth - Tb),
         y: backBottomY,
         width: Tb,
-        height: Math.max(0, backTopY - backBottomY),
+        height: Math.max(0, Math.min(backTopY, sideHeight) - backBottomY),
         depth: grooveDepth,
         purpose: 'back-panel-groove',
       }] : [],
@@ -352,27 +355,28 @@ export function computePanels(cabinet) {
   const topOrStretcherD = cabinet.hasTop ? sideDepth : stretcherDepth;
 
   if (cabinet.hasTop) {
+    const topWidth = capTop ? W : topOrStretcherW;
     const topDepth = sideDepth - ffDepthOff;
-    if (topOrStretcherW > 0 && topDepth > 0) {
+    if (topWidth > 0 && topDepth > 0) {
       panels.push(makePanel({
         id: 'top',
         name: 'Top',
         type: 'case',
         color: caseColor,
         materialLabel: caseMaterialLabel,
-        cutWidth: topOrStretcherW,
+        cutWidth: topWidth,
         cutHeight: topDepth,
         cutThickness: T,
         posX: W / 2,
         posY: H - T / 2,
         posZ: ffDepthOff + topDepth / 2,
-        sizeX: topOrStretcherW,
+        sizeX: topWidth,
         sizeY: T,
         sizeZ: topDepth,
         grooves: cabinet.backMount === 'grooved-in' ? [{
-          x: 0,
+          x: capTop ? T - grooveDepth : 0,
           y: Math.max(0, topDepth - Tb),
-          width: topOrStretcherW,
+          width: capTop ? W - 2 * T + 2 * grooveDepth : topOrStretcherW,
           height: Tb,
           depth: grooveDepth,
           purpose: 'back-panel-groove',
@@ -688,6 +692,14 @@ export function computePanels(cabinet) {
         edgeBanding: { top: true, bottom: true, left: true, right: true },
       });
 
+      panel.detailPaths = [];
+      const detail = doorDetailPath(dw, dh, cabinet.doors);
+      if (detail.length) panel.detailPaths.push(detail);
+      if (cabinet.doors.detailStyle === 'slats') {
+        panel.detailPaths = doorSlatPaths(dw, dh, cabinet.doors);
+        panel.detailPathsClosed = false;
+      }
+
       // Hinge cup bores
       const hingeCount = dh > 1300 ? 3 : 2;
       const hingePositions = hingeCount === 2
@@ -777,6 +789,12 @@ export function computePanels(cabinet) {
           edgeBanding: { top: true, bottom: true, left: true, right: true },
         }));
         const drawerFrontPanel = panels[panels.length - 1];
+        const drawerDetail = doorDetailPath(drawerW, dh, cabinet.drawers);
+        drawerFrontPanel.detailPaths = drawerDetail.length ? [drawerDetail] : [];
+        if (cabinet.drawers.detailStyle === 'slats') {
+          drawerFrontPanel.detailPaths = doorSlatPaths(drawerW, dh, cabinet.drawers);
+          drawerFrontPanel.detailPathsClosed = false;
+        }
         addHorizontalHandleHoles(drawerFrontPanel, drawerW / 2, dh - drawerHandleTopOffset);
         drawerFrontPanel.drawDepth = drawerDepth;
 

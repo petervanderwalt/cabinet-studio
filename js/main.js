@@ -1,10 +1,10 @@
 import { dimension, formatLength, getUnits, lengthInput, readLength, stockDimension, unitLabel } from './units.js?v=20261020h';
 // main.js - Application entry point
-import { CabinetViewport } from './three-viewport.js?v=20261020h';
-import { CabinetForm } from './form-ui.js?v=20261020h';
-import { computePanels } from './cabinet-math.js?v=20261020h';
-import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261020h';
-import { buildNestingPlan } from './nesting.js?v=20261020h';
+import { CabinetViewport } from './three-viewport.js?v=20261020o';
+import { CabinetForm } from './form-ui.js?v=20261020p';
+import { computePanels } from './cabinet-math.js?v=20261020o';
+import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261020o';
+import { buildNestingPlan } from './nesting.js?v=20261020o';
 import { applyGlobalMaterialSelections, STOCK_FIELDS, sharedStockChoices, splitStockAppearance } from './material-presets.js?v=20261020f';
 import {
   addCabinet,
@@ -436,6 +436,7 @@ function updatePanelList(panels) {
     if (holes > 0) metaParts.push(`${holes} holes`);
     if (notches > 0) metaParts.push(`${notches} notches`);
     if (grooves > 0) metaParts.push(`${grooves} grooves`);
+    if (panel.detailPaths?.length) metaParts.push(panel.detailPathsClosed === false ? `${panel.detailPaths.length} slat lines` : 'Routed front detail');
     if (edgeParts.length > 0) metaParts.push(`Edge banding: ${edgeParts.join('/')}`);
 
     const row = document.createElement('div');
@@ -708,12 +709,14 @@ function buildSheetSvg(sheet, options) {
       ? `${formatLength(panel.cutHeight)} x ${formatLength(panel.cutWidth)}`
       : `${formatLength(panel.cutWidth)} x ${formatLength(panel.cutHeight)}`;
     const notchCutouts = buildPlacementNotchSvg(placement, width);
+    const details = buildPlacementDetailSvg(placement, width);
 
     return `
       <g>
         ${gap > 0 ? `<rect x="${gapX}" y="${gapY}" width="${gapWidth}" height="${gapHeight}" fill="rgba(255, 196, 82, 0.14)" stroke="rgba(214, 144, 24, 0.35)" stroke-dasharray="${Math.max(5, width / 180)} ${Math.max(3, width / 260)}" stroke-width="${Math.max(1, width / 1100)}" />` : ''}
         <rect x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" fill="#f5f7fb" stroke="#71819a" stroke-width="${Math.max(1.5, width / 500)}" />
         ${notchCutouts}
+        ${details}
         <g transform="translate(${cx} ${cy}) scale(1 -1) rotate(${textAngle})">
           <text x="0" y="${labelSize * 0.2}" text-anchor="middle" font-size="${labelSize}" font-weight="700" fill="#243247">${escapeHtml(`${index + 1}. ${panel.name}`)}</text>
           <text x="0" y="${labelSize * 1.2}" text-anchor="middle" font-size="${labelSize * 0.75}" fill="#5d6d85">${escapeHtml(dims)}</text>
@@ -742,6 +745,17 @@ function buildSheetSvg(sheet, options) {
       <text x="${-pad * 0.35}" y="${height / 2}" text-anchor="middle" font-size="${labelSize * 0.72}" fill="#5d6d85" transform="rotate(-90 ${-pad * 0.35} ${height / 2})">${dimension(height)}</text>
     </svg>
   `;
+}
+
+function buildPlacementDetailSvg(placement, sheetWidth) {
+  const pointsForSheet = path => path.map(point => {
+    const x = placement.x + (placement.rotated ? placement.panel.cutHeight - point.y : point.x);
+    const y = placement.y + (placement.rotated ? point.x : point.y);
+    return `${x},${y}`;
+  }).join(' ');
+  return (placement.panel?.detailPaths || []).map(path => (
+    `<${placement.panel.detailPathsClosed === false ? 'polyline' : 'polygon'} points="${pointsForSheet(path)}" fill="none" stroke="#655044" stroke-width="${Math.max(2, sheetWidth / 700)}" stroke-linejoin="round" />`
+  )).join('');
 }
 
 function buildPlacementNotchSvg(placement, sheetWidth) {
@@ -828,6 +842,9 @@ function buildPanelPreviewSvg(panel) {
   const grooves = (panel.grooves || []).map(groove => (
     `<rect x="${groove.x}" y="${groove.y}" width="${groove.width}" height="${groove.height}" fill="none" stroke="#3a6df0" stroke-width="${strokeWidth}" stroke-dasharray="${strokeWidth * 3} ${strokeWidth * 2}" />`
   )).join('');
+  const details = (panel.detailPaths || []).map(path => (
+    `<${panel.detailPathsClosed === false ? 'polyline' : 'polygon'} points="${path.map(point => `${point.x},${point.y}`).join(' ')}" fill="none" stroke="#655044" stroke-width="${strokeWidth}" stroke-linejoin="round" />`
+  )).join('');
   const edgeLines = buildEdgeBandingLines(panel, width, height);
 
   return `<svg class="panel-preview-svg" viewBox="${viewBox}" role="img" aria-label="${escapeHtml(panel.name)} preview">
@@ -835,6 +852,7 @@ function buildPanelPreviewSvg(panel) {
       <rect x="0" y="0" width="${width}" height="${height}" rx="${Math.min(width, height) * 0.015}" fill="#edf3ff" stroke="#7f91b1" stroke-width="${strokeWidth}" />
       ${notches}
       ${grooves}
+      ${details}
       ${holes}
       ${edgeLines}
     </g>

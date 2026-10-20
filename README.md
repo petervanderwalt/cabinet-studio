@@ -153,3 +153,11 @@ Examples: [3/4-inch melamine](https://www.lowes.com/pd/White-Premium-Melamine-Pa
 Each sheet card in **Nesting** has its own **DXF** button. The download contains that sheet’s nested parts, drilling, grooves and sheet outline in the selected units, using the same export as the manufacturing ZIP. Filenames include stock, thickness and sheet number.
 
 Stock labels retain the thickness units selected for that stock (for example, 18 mm or 3/4 in), even when the workspace uses the other unit system. Other displayed dimensions use at most three decimals. Geometry and DXF coordinate calculations retain full precision.
+
+### Routed door detail
+
+In Door Configuration, choose a routed detail: rectangle, clipped corners, rounded corners, inward rounded corners, arched top or cathedral top. Plain remains the default. Set the centreline inset from the door edges and the corner size / arch rise. Details appear on the front face in the 3D preview and are saved with the cabinet.
+
+Individual and nested DXFs include one closed centreline polyline per border detail on `DOOR_DETAIL`, separate from `CUTLINE`, `DRILL` and structural `GROOVE` geometry. Select this layer in CAM and route on the line with your chosen ballnose or V-bit and cutting depth. Curves use fine straight segments with approximately 0.02 mm chord tolerance. Corner sizes are limited to fit the door; an inset leaving no inner area produces no detail. Hinge bores are on the back face, while detail is on the front: plan machining setups accordingly.
+
+For fake slats, select **Vertical slats (V-bit)** and set **Slat line spacing (centre to centre)**. The count is automatic, with exact spacing and equal side margins. The detail inset sets the minimum side margins and the top/bottom line ends. Panel entries show the resulting line count. Each groove exports as a separate open, two-point polyline on `DOOR_DETAIL`, including rotated nested parts, and appears in panel, nesting and 3D previews. Set V-bit and routing depth in CAM.

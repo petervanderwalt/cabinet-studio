@@ -1,5 +1,5 @@
 import { dimension, formatLength, isImperial, toDisplay, stockDimension, unitLabel } from './units.js?v=20261020h';
-import { inferFrontMode } from './cabinet-math.js?v=20261020h';
+import { inferFrontMode } from './cabinet-math.js?v=20261020o';
 
 const JSZip = window.JSZip;
 
@@ -30,11 +30,12 @@ function createDxfDocument(entitiesWriter) {
   pair(lines, 2, 'TABLES');
   pair(lines, 0, 'TABLE');
   pair(lines, 2, 'LAYER');
-  pair(lines, 70, 8);
+  pair(lines, 70, 9);
   writeLayer(lines, '0', 7);
   writeLayer(lines, 'CUTLINE', 1);
   writeLayer(lines, 'DRILL', 3);
   writeLayer(lines, 'GROOVE', 5);
+  writeLayer(lines, 'DOOR_DETAIL', 6);
   writeLayer(lines, 'LABEL', 7);
   writeLayer(lines, 'SHEET', 8);
   writeLayer(lines, 'GAP', 2, 'DASHED');
@@ -206,6 +207,8 @@ export function panelToDxf(panel) {
       writer.rect(groove.x, groove.y, groove.width, groove.height, 'GROOVE');
     }
 
+    for (const path of panel.detailPaths || []) writer.polyline(path, 'DOOR_DETAIL', panel.detailPathsClosed !== false);
+
     writer.text(5, Math.max(5, Number(panel.cutHeight || 0) - 5), 3, panelLabel(panel), 'LABEL', 0);
   });
 }
@@ -243,6 +246,10 @@ export function sheetToDxf(sheet, options = {}) {
       for (const groove of panel.grooves || []) {
         const transformedCorners = transformRect(groove, placement);
         writer.polyline(transformedCorners, 'GROOVE', true);
+      }
+
+      for (const path of panel.detailPaths || []) {
+        writer.polyline(path.map(point => transformPoint(point, placement)), 'DOOR_DETAIL', panel.detailPathsClosed !== false);
       }
 
       const labelHeight = Math.max(8, Math.min(24, Math.min(placement.width, placement.height) * 0.08));

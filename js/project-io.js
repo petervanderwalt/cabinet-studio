@@ -1,5 +1,5 @@
 import { defaultStockMaterials } from './material-presets.js?v=20261020f';
-import { defaultCabinet } from './cabinet-math.js?v=20261020h';
+import { defaultCabinet } from './cabinet-math.js?v=20261020o';
 
 const PROJECT_VERSION = 2;
 const LAYOUT_SPACING = 40;
