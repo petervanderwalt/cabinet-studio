@@ -1,10 +1,11 @@
+import { dimension, formatLength, getUnits, lengthInput, readLength, stockDimension, unitLabel } from './units.js?v=20261020h';
 // main.js - Application entry point
-import { CabinetViewport } from './three-viewport.js';
-import { CabinetForm } from './form-ui.js';
-import { computePanels } from './cabinet-math.js';
-import { downloadManufacturingZip, downloadPanelDxf, downloadProjectFile } from './dxf-writer.js';
-import { buildNestingPlan } from './nesting.js';
-import { applyGlobalMaterialSelections, CARCASS_STOCKS, FRONT_STOCKS, REAR_STOCKS } from './material-presets.js';
+import { CabinetViewport } from './three-viewport.js?v=20261020h';
+import { CabinetForm } from './form-ui.js?v=20261020h';
+import { computePanels } from './cabinet-math.js?v=20261020h';
+import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261020h';
+import { buildNestingPlan } from './nesting.js?v=20261020h';
+import { applyGlobalMaterialSelections, STOCK_FIELDS, sharedStockChoices, splitStockAppearance } from './material-presets.js?v=20261020f';
 import {
   addCabinet,
   createProjectFromConfig,
@@ -15,7 +16,7 @@ import {
   setActiveCabinet,
   updateActiveCabinetConfig,
   updateCabinetMeta,
-} from './project-io.js';
+} from './project-io.js?v=20261020e';
 
 let viewport = null;
 let form = null;
@@ -47,10 +48,16 @@ function init() {
   }
 
   form = new CabinetForm(formContainer, (config) => {
+    if (currentProject) for (const cabinet of currentProject.cabinets) cabinet.config.units = getUnits();
+    document.getElementById('units-select').value = getUnits();
     currentConfig = config;
     currentProject = updateActiveCabinetConfig(currentProject, config);
     refreshDerivedState();
   });
+
+  const unitsSelect = document.getElementById('units-select');
+  unitsSelect.value = getUnits();
+  unitsSelect.addEventListener('change', () => form.setDisplayUnits(unitsSelect.value));
 
   document.getElementById('save-project-btn').addEventListener('click', () => {
     if (currentProject) {
@@ -419,7 +426,7 @@ function updatePanelList(panels) {
 
   list.innerHTML = '';
   for (const panel of panels) {
-    const dims = `${panel.cutWidth.toFixed(0)} x ${panel.cutHeight.toFixed(0)} x ${panel.cutThickness.toFixed(0)}`;
+    const dims = `${formatLength(panel.cutWidth)} x ${formatLength(panel.cutHeight)} x ${formatLength(panel.cutThickness)}`;
     const holes = (panel.holes || []).length;
     const notches = (panel.notches || []).length;
     const grooves = (panel.grooves || []).length;
@@ -437,7 +444,7 @@ function updatePanelList(panels) {
     main.className = 'panel-row-main';
     main.append(
       makePanelRowSpan('panel-name', panel.name),
-      makePanelRowSpan('panel-dims', `${dims}mm`),
+      makePanelRowSpan('panel-dims', `${dims} ${unitLabel()}`),
       makePanelRowSpan('panel-meta', metaParts.join(', '))
     );
 
@@ -514,16 +521,16 @@ function buildNestingControls(config) {
     <section class="nesting-controls-card">
       <div class="nesting-controls-head">
         <h4>Global Stock Setup</h4>
-        <p>Carcass also drives shelves, drawer sides, and kickboard. Rear and fronts are tracked separately.</p>
       </div>
       <div class="nesting-controls-grid">
-        ${buildStockSelect('Carcass Stock', 'carcass', materials.caseMaterial, CARCASS_STOCKS)}
-        ${buildStockSelect('Rear Stock', 'rear', materials.backMaterial, REAR_STOCKS)}
-        ${buildStockSelect('Front Stock', 'front', materials.frontMaterial || materials.doorMaterial, FRONT_STOCKS)}
+        ${buildStockSelect('Carcass Stock', 'carcass', materials.caseMaterial, materials.caseThickness)}
+        ${buildStockSelect('Rear Stock', 'rear', materials.backMaterial, materials.backThickness)}
+        ${buildStockSelect('Front Stock', 'front', materials.frontMaterial || materials.doorMaterial, materials.doorThickness)}
+        ${buildStockSelect('Drawer Side / Back Stock', 'drawer-side', materials.drawerSideMaterial, materials.drawerSideThickness)}
+        ${buildStockSelect('Drawer Bottom Stock', 'drawer-bottom', materials.drawerBottomMaterial, materials.drawerBottomThickness)}
       </div>
       <div class="nesting-controls-head">
         <h4>Nesting Settings</h4>
-        <p>Control the stock sheet size, machining gap, and whether parts may rotate during nesting.</p>
       </div>
       <div class="nesting-controls-grid nesting-settings-grid">
         ${buildNestingNumberField('Sheet length', 'sheetWidth', nesting.sheetWidth ?? 2440, 'mm', 100, 1)}
@@ -535,18 +542,31 @@ function buildNestingControls(config) {
   `;
 }
 
-function buildStockSelect(label, stockType, currentValue, options) {
-  const optionMarkup = options.map((option) => {
-    const selected = option.label === currentValue ? ' selected' : '';
-    return `<option value="${escapeHtml(option.label)}"${selected}>${escapeHtml(option.label)} · ${formatPanelNumber(option.thickness)}mm</option>`;
-  }).join('');
-
-  return `
-    <label class="nesting-stock-field">
-      <span>${escapeHtml(label)}</span>
-      <select data-stock-type="${stockType}">${optionMarkup}</select>
-    </label>
-  `;
+function buildStockSelect(label, stockType, currentValue, currentThickness) {
+  const selection = currentConfig.materials.stockSelections?.[stockType];
+  const appearance = splitStockAppearance(selection?.material || currentValue);
+  const material = appearance.material;
+  const colour = selection?.colour || appearance.colour;
+  const choices = sharedStockChoices(currentProject.cabinets.map(c=>c.config.materials));
+  const names = choices.materials;
+  const colours = choices.colours;
+  const selectedThickness = choices.thicknesses.find(t => Math.abs(t.thickness - currentThickness) < 1e-8);
+  const thicknessOptions = ['metric', 'imperial'].map(units => `<optgroup label="${units === 'metric' ? 'Metric' : 'Imperial'}">${choices.thicknesses.filter(t=>t.units===units).map(t=>`<option value="${t.value}"${t===selectedThickness ? ' selected' : ''}>${t.label}</option>`).join('')}</optgroup>`).join('');
+  const existing = selectedThickness ? '' : `<optgroup label="Existing thickness"><option value="existing" selected>${escapeHtml(dimension(currentThickness))}</option></optgroup>`;
+  return `<div class="nesting-stock-group" data-stock-type="${stockType}">
+    <strong>${escapeHtml(label)}</strong>
+    <div class="nesting-stock-pair">
+      <label class="nesting-stock-field"><span>Material</span>
+        <select data-stock-material aria-label="${escapeHtml(label)} material">${names.map(name=>`<option value="${escapeHtml(name)}"${name===material ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select>
+      </label>
+      <label class="nesting-stock-field"><span>Colour</span>
+        <select data-stock-colour aria-label="${escapeHtml(label)} colour">${colours.map(name=>`<option value="${escapeHtml(name)}"${name===colour ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select>
+      </label>
+      <label class="nesting-stock-field"><span>Thickness</span>
+        <select data-stock-thickness aria-label="${escapeHtml(label)} thickness">${thicknessOptions}${existing}</select>
+      </label>
+    </div>
+  </div>`;
 }
 
 function buildNestingNumberField(label, nestingKey, value, unit, min, step) {
@@ -557,7 +577,7 @@ function buildNestingNumberField(label, nestingKey, value, unit, min, step) {
         <input
           type="number"
           data-nesting-key="${escapeHtml(nestingKey)}"
-          value="${escapeHtml(formatPanelNumber(value))}"
+          value="${escapeHtml(String(value))}"
           min="${escapeHtml(String(min))}"
           step="${escapeHtml(String(step))}"
         />
@@ -577,18 +597,28 @@ function buildNestingCheckboxField(label, nestingKey, checked) {
 }
 
 function bindNestingViewEvents(root, plan) {
-  for (const select of root.querySelectorAll('[data-stock-type]')) {
-    select.addEventListener('change', () => {
-      const stockType = select.getAttribute('data-stock-type');
-      const materials = { ...(currentConfig?.materials || {}) };
-      if (stockType === 'carcass') materials.caseMaterial = select.value;
-      if (stockType === 'rear') materials.backMaterial = select.value;
-      if (stockType === 'front') materials.frontMaterial = select.value;
-      const nextConfig = {
-        ...currentConfig,
-        materials: applyGlobalMaterialSelections(materials),
+  for (const group of root.querySelectorAll('[data-stock-type]')) {
+    const commit = () => {
+      const type = group.dataset.stockType;
+      const choices = sharedStockChoices(currentProject.cabinets.map(c=>c.config.materials));
+      const chosen = choices.thicknesses.find(t=>t.value===group.querySelector('[data-stock-thickness]').value);
+      const fields = STOCK_FIELDS[type];
+      const selection = {
+        material: group.querySelector('[data-stock-material]').value,
+        colour: group.querySelector('[data-stock-colour]').value,
+        thickness: chosen?.thickness ?? currentConfig.materials[fields.thickness],
+        units: chosen?.units ?? getUnits(),
       };
-      form.importConfig(nextConfig);
+      const materials = { ...currentConfig.materials, stockSelections: { ...currentConfig.materials.stockSelections, [type]:selection } };
+      form.importConfig({ ...currentConfig, materials:applyGlobalMaterialSelections(materials, currentConfig.drawers) });
+    };
+    for (const select of group.querySelectorAll('select')) select.addEventListener('change', commit);
+  }
+
+  for (const button of root.querySelectorAll('[data-sheet-export]')) {
+    button.addEventListener('click', () => {
+      const sheet = plan.groups.flatMap(group => group.sheets).find(entry => entry.id === button.dataset.sheetExport);
+      if (sheet) downloadSheetDxf(sheet, plan.options);
     });
   }
 
@@ -601,17 +631,25 @@ function bindNestingViewEvents(root, plan) {
   }
 
   for (const input of root.querySelectorAll('[data-nesting-key]')) {
-    input.addEventListener('change', () => {
+    if (input.type !== 'checkbox') {
+      lengthInput(input);
+      input.parentElement.querySelector('em').textContent = unitLabel();
+    }
+    const commit = () => {
       const nestingKey = input.getAttribute('data-nesting-key');
       const nesting = { ...(currentConfig?.nesting || {}) };
       nesting[nestingKey] = input.type === 'checkbox'
         ? input.checked
-        : (Number.parseFloat(input.value) || 0);
+        : readLength(input);
+      if (nesting[nestingKey] === currentConfig?.nesting?.[nestingKey]) return;
+      if (typeof nesting[nestingKey] === 'number' && !Number.isFinite(nesting[nestingKey])) return;
       form.importConfig({
         ...currentConfig,
         nesting,
       });
-    });
+    };
+    input.addEventListener('change', commit);
+    input.addEventListener('blur', commit);
   }
 }
 
@@ -631,10 +669,15 @@ function buildSheetCard(sheet, options) {
       <div class="nesting-sheet-head">
         <div>
           <h5>Sheet ${sheet.index + 1}</h5>
-          <p>${escapeHtml(sheet.materialLabel || 'Sheet Stock')} · ${formatPanelNumber(sheet.thickness)}mm</p>
-          <p>${formatPanelNumber(sheet.sheetWidth)} x ${formatPanelNumber(sheet.sheetHeight)} mm · ${sheet.placements.length} parts</p>
+          <p>${escapeHtml(sheet.materialLabel || 'Sheet Stock')} · ${stockDimension(sheet)}</p>
+          <p>${formatLength(sheet.sheetWidth)} x ${dimension(sheet.sheetHeight)} · ${sheet.placements.length} parts</p>
         </div>
-        <span class="nesting-badge">${utilization.toFixed(1)}%</span>
+        <div class="nesting-sheet-actions">
+          <span class="nesting-badge">${utilization.toFixed(1)}%</span>
+          <button class="export-row-btn" type="button" data-sheet-export="${escapeHtml(sheet.id)}" aria-label="Export ${escapeHtml(sheet.materialLabel)} sheet ${sheet.index + 1} DXF">
+            <i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i><span>DXF</span>
+          </button>
+        </div>
       </div>
       <button class="nesting-sheet-canvas nesting-sheet-canvas-btn" type="button" data-sheet-id="${escapeHtml(sheet.id)}" aria-label="Open larger review for sheet ${sheet.index + 1}">
         ${buildSheetSvg(sheet, options)}
@@ -662,8 +705,8 @@ function buildSheetSvg(sheet, options) {
     const gapWidth = Math.min(width, placement.x + placement.width + gapInset) - gapX;
     const gapHeight = Math.min(height, placement.y + placement.height + gapInset) - gapY;
     const dims = placement.rotated
-      ? `${formatPanelNumber(panel.cutHeight)} x ${formatPanelNumber(panel.cutWidth)}`
-      : `${formatPanelNumber(panel.cutWidth)} x ${formatPanelNumber(panel.cutHeight)}`;
+      ? `${formatLength(panel.cutHeight)} x ${formatLength(panel.cutWidth)}`
+      : `${formatLength(panel.cutWidth)} x ${formatLength(panel.cutHeight)}`;
     const notchCutouts = buildPlacementNotchSvg(placement, width);
 
     return `
@@ -691,12 +734,12 @@ function buildSheetSvg(sheet, options) {
         ${placements}
         ${gap > 0 ? `
           <g transform="translate(${width - pad * 0.15} ${height - pad * 0.25}) scale(1 -1)">
-            <text x="0" y="0" text-anchor="end" font-size="${labelSize * 0.7}" fill="#5d6d85">Gap ${escapeHtml(formatPanelNumber(gap))}mm</text>
+            <text x="0" y="0" text-anchor="end" font-size="${labelSize * 0.7}" fill="#5d6d85">Gap ${escapeHtml(dimension(gap))}</text>
           </g>
         ` : ''}
       </g>
-      <text x="${width / 2}" y="${-pad * 0.18}" text-anchor="middle" font-size="${labelSize * 0.72}" fill="#5d6d85">${formatPanelNumber(width)} mm</text>
-      <text x="${-pad * 0.35}" y="${height / 2}" text-anchor="middle" font-size="${labelSize * 0.72}" fill="#5d6d85" transform="rotate(-90 ${-pad * 0.35} ${height / 2})">${formatPanelNumber(height)} mm</text>
+      <text x="${width / 2}" y="${-pad * 0.18}" text-anchor="middle" font-size="${labelSize * 0.72}" fill="#5d6d85">${dimension(width)}</text>
+      <text x="${-pad * 0.35}" y="${height / 2}" text-anchor="middle" font-size="${labelSize * 0.72}" fill="#5d6d85" transform="rotate(-90 ${-pad * 0.35} ${height / 2})">${dimension(height)}</text>
     </svg>
   `;
 }
@@ -749,7 +792,7 @@ function openSheetModal(sheet, options) {
   if (!modal || !title || !meta || !body) return;
 
   title.textContent = `Sheet ${sheet.index + 1}`;
-  meta.textContent = `${sheet.materialLabel || 'Sheet Stock'} · ${formatPanelNumber(sheet.thickness)}mm · ${formatPanelNumber(sheet.sheetWidth)} x ${formatPanelNumber(sheet.sheetHeight)} mm · ${sheet.placements.length} parts`;
+  meta.textContent = `${sheet.materialLabel || 'Sheet Stock'} · ${stockDimension(sheet)} · ${formatLength(sheet.sheetWidth)} x ${dimension(sheet.sheetHeight)} · ${sheet.placements.length} parts`;
   body.innerHTML = buildSheetSvg(sheet, options);
   modal.classList.remove('hidden');
 }
@@ -810,10 +853,7 @@ function buildEdgeBandingLines(panel, width, height) {
   return lines.join('');
 }
 
-function formatPanelNumber(value) {
-  const n = Number(value) || 0;
-  return Number.isInteger(n) ? String(n) : n.toFixed(1);
-}
+
 
 function escapeHtml(value) {
   return String(value)

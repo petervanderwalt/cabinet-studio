@@ -1,4 +1,5 @@
-import { defaultCabinet } from './cabinet-math.js';
+import { defaultStockMaterials } from './material-presets.js?v=20261020f';
+import { defaultCabinet } from './cabinet-math.js?v=20261020h';
 
 const PROJECT_VERSION = 2;
 const LAYOUT_SPACING = 40;
@@ -243,7 +244,18 @@ export function updateCabinetMeta(project, cabinetId, updates = {}) {
 
 export function addCabinet(project, seedConfig = null) {
   const normalized = normalizeProject(project);
-  const entry = createCabinetEntry(seedConfig || defaultCabinet(), {
+  const fresh = seedConfig || defaultCabinet();
+  if (!seedConfig) {
+    fresh.units = getActiveCabinet(normalized).config.units || 'metric';
+    Object.assign(fresh.materials, defaultStockMaterials(fresh.units));
+    if (fresh.units === 'imperial') {
+      fresh.nesting.sheetWidth = 2438.4;
+      fresh.nesting.sheetHeight = 1219.2;
+      fresh.drawers.sideThickness = 12.7;
+      fresh.drawers.bottomThickness = 6.35;
+    }
+  }
+  const entry = createCabinetEntry(fresh, {
     id: makeId(),
     name: nextCabinetName(normalized.cabinets),
     qty: 1,

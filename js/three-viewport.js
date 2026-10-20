@@ -1,3 +1,4 @@
+import { panelSolidData } from './panel-solid.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createPanelMaterial, disposePanelMaterial } from './viewport-materials.js';
@@ -299,7 +300,14 @@ export class CabinetViewport {
     const hasNotch = p.notches && p.notches.length > 0;
     let geometry;
 
-    if (hasNotch) {
+    if (p.grooves?.some(g => g.depth > 0)) {
+      // Avoid coplanar contact flicker at fitted rebate edges; cut sizes stay exact.
+      const solid = panelSolidData(p, 0.02);
+      geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(solid.positions, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(solid.uvs, 2));
+      geometry.computeVertexNormals();
+    } else if (hasNotch) {
       geometry = this._buildNotchedGeometry(p);
     } else {
       geometry = new THREE.BoxGeometry(p.sizeX, p.sizeY, p.sizeZ);

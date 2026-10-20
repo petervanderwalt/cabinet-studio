@@ -1,4 +1,5 @@
-import { inferFrontMode } from './cabinet-math.js';
+import { dimension, formatLength, isImperial, toDisplay, stockDimension, unitLabel } from './units.js?v=20261020h';
+import { inferFrontMode } from './cabinet-math.js?v=20261020h';
 
 const JSZip = window.JSZip;
 
@@ -22,7 +23,7 @@ function createDxfDocument(entitiesWriter) {
   pair(lines, 9, '$ACADVER');
   pair(lines, 1, 'AC1009');
   pair(lines, 9, '$INSUNITS');
-  pair(lines, 70, 4);
+  pair(lines, 70, isImperial() ? 1 : 4);
   pair(lines, 0, 'ENDSEC');
 
   pair(lines, 0, 'SECTION');
@@ -44,10 +45,10 @@ function createDxfDocument(entitiesWriter) {
   pair(lines, 0, 'SECTION');
   pair(lines, 2, 'ENTITIES');
   entitiesWriter({
-    polyline: (points, layer = 'CUTLINE', closed = true) => writePolyline(lines, points, layer, closed),
-    circle: (x, y, radius, layer = 'DRILL') => writeCircle(lines, x, y, radius, layer),
-    text: (x, y, height, value, layer = 'LABEL', rotation = 0) => writeText(lines, x, y, height, value, layer, rotation),
-    rect: (x, y, width, height, layer = 'CUTLINE') => writeRect(lines, x, y, width, height, layer),
+    polyline: (points, layer = 'CUTLINE', closed = true) => writePolyline(lines, points.map(p => ({ ...p, x: toDisplay(p.x), y: toDisplay(p.y) })), layer, closed),
+    circle: (x, y, radius, layer = 'DRILL') => writeCircle(lines, toDisplay(x), toDisplay(y), toDisplay(radius), layer),
+    text: (x, y, height, value, layer = 'LABEL', rotation = 0) => writeText(lines, toDisplay(x), toDisplay(y), toDisplay(height), value, layer, rotation),
+    rect: (x, y, width, height, layer = 'CUTLINE') => writeRect(lines, toDisplay(x), toDisplay(y), toDisplay(width), toDisplay(height), layer),
   });
   pair(lines, 0, 'ENDSEC');
   pair(lines, 0, 'EOF');
@@ -190,7 +191,7 @@ function transformHole(hole, placement) {
 }
 
 function panelLabel(panel) {
-  return `${panel.name}  ${Number(panel.cutWidth).toFixed(1)} x ${Number(panel.cutHeight).toFixed(1)} x ${Number(panel.cutThickness).toFixed(1)}`;
+  return `${panel.name}  ${formatLength(panel.cutWidth)} x ${formatLength(panel.cutHeight)} x ${formatLength(panel.cutThickness)} ${unitLabel()}`;
 }
 
 export function panelToDxf(panel) {
@@ -250,8 +251,8 @@ export function sheetToDxf(sheet, options = {}) {
       writer.text(labelX, labelY, labelHeight, `${index + 1}. ${panel.name}`, 'LABEL', placement.height > placement.width ? 90 : 0);
     }
 
-    writer.text(20, sheet.sheetHeight + 20, 8, `Sheet ${sheet.index + 1} - ${sheet.materialLabel || 'Sheet Stock'} - ${Number(sheet.thickness || 0).toFixed(1)}mm`, 'LABEL', 0);
-    writer.text(Math.max(20, sheet.sheetWidth - 160), sheet.sheetHeight + 20, 8, `${Number(sheet.sheetWidth).toFixed(0)} x ${Number(sheet.sheetHeight).toFixed(0)} mm`, 'LABEL', 0);
+    writer.text(20, sheet.sheetHeight + 20, 8, `Sheet ${sheet.index + 1} - ${sheet.materialLabel || 'Sheet Stock'} - ${stockDimension(sheet)}`, 'LABEL', 0);
+    writer.text(Math.max(20, sheet.sheetWidth - 160), sheet.sheetHeight + 20, 8, `${formatLength(sheet.sheetWidth)} x ${formatLength(sheet.sheetHeight)} ${unitLabel()}`, 'LABEL', 0);
   });
 }
 
@@ -265,20 +266,20 @@ function generateCabinetManifest(config, panels) {
   lines.push('CONFIGURATION');
   lines.push(`  Category:         ${config.category}`);
   lines.push(`  Front mode:       ${frontMode}`);
-  lines.push(`  Width:            ${config.width} mm`);
-  lines.push(`  Height:           ${config.height} mm`);
-  lines.push(`  Depth:            ${config.depth} mm`);
+  lines.push(`  Width:            ${dimension(config.width)}`);
+  lines.push(`  Height:           ${dimension(config.height)}`);
+  lines.push(`  Depth:            ${dimension(config.depth)}`);
   lines.push(`  Construction:     ${config.construction}`);
   lines.push(`  Back mount:       ${config.backMount}`);
   lines.push(`  Has top:          ${config.hasTop}`);
   lines.push(`  Overlay type:     ${config.overlay?.type}`);
-  lines.push(`  Overlay amount:   ${config.overlay?.amount} mm`);
-  lines.push(`  Reveal/gap:       ${config.reveal} mm`);
+  lines.push(`  Overlay amount:   ${dimension(config.overlay?.amount)}`);
+  lines.push(`  Reveal/gap:       ${dimension(config.reveal)}`);
   lines.push('');
   lines.push('TOE KICK');
   if (config.toeKick) {
-    lines.push(`  Height:           ${config.toeKick.height} mm`);
-    lines.push(`  Setback:          ${config.toeKick.setback} mm`);
+    lines.push(`  Height:           ${dimension(config.toeKick.height)}`);
+    lines.push(`  Setback:          ${dimension(config.toeKick.setback)}`);
   } else {
     lines.push('  None');
   }
@@ -290,37 +291,42 @@ function generateCabinetManifest(config, panels) {
   lines.push('DRAWERS');
   lines.push(`  Count:            ${config.drawers?.count ?? 0}`);
   if (config.drawers?.count > 0) {
-    lines.push(`  Heights (top->):  ${config.drawers.heights?.join(', ') ?? '-'}`);
-    lines.push(`  Side thickness:   ${config.drawers.sideThickness ?? '-'} mm`);
-    lines.push(`  Bottom thickness: ${config.drawers.bottomThickness ?? '-'} mm`);
-    lines.push(`  Side clearance:   ${config.drawers.sideClearance ?? '-'} mm`);
+    lines.push(`  Heights (top->):  ${config.drawers.heights?.map(dimension).join(', ') ?? '-'}`);
+    lines.push(`  Side thickness:   ${dimension(config.drawers.sideThickness ?? '-')}`);
+    lines.push(`  Bottom thickness: ${dimension(config.drawers.bottomThickness ?? '-')}`);
+    lines.push(`  Side clearance:   ${dimension(config.drawers.sideClearance ?? '-')}`);
   }
   lines.push('');
   lines.push('SHELVES');
   lines.push(`  Count:            ${config.shelves?.count ?? 0}`);
   if (config.shelves?.count > 0) {
-    lines.push(`  Thickness:        ${config.shelves?.thickness ?? '-'} mm`);
+    lines.push(`  Thickness:        ${dimension(config.shelves?.thickness ?? '-')}`);
   }
   lines.push('');
   lines.push('MATERIALS');
-  lines.push(`  Case thickness:   ${config.materials.caseThickness} mm`);
-  lines.push(`  Back thickness:   ${config.materials.backThickness} mm`);
-  lines.push(`  Door thickness:   ${config.materials.doorThickness} mm`);
+  lines.push(`  Case thickness:   ${dimension(config.materials.caseThickness)}`);
+  lines.push(`  Back thickness:   ${dimension(config.materials.backThickness)}`);
+  lines.push(`  Door thickness:   ${dimension(config.materials.doorThickness)}`);
   if (config.construction === 'face-frame') {
-    lines.push(`  Face frame width: ${config.materials.faceFrameWidth} mm`);
-    lines.push(`  Face frame stock: ${config.materials.faceFrameStock ?? '-'} mm`);
+    lines.push(`  Face frame width: ${dimension(config.materials.faceFrameWidth)}`);
+    lines.push(`  Face frame stock: ${dimension(config.materials.faceFrameStock ?? '-')}`);
   }
   lines.push('');
+  lines.push(`Units: ${unitLabel()} (DXF geometry uses the same units)`);
   lines.push('PANELS');
   lines.push(`  Total:            ${panels.length} parts`);
   lines.push('');
-  lines.push('  Name'.padEnd(24) + 'Dimensions (mm)'.padEnd(24) + 'Edge banding');
+  lines.push('  Name'.padEnd(24) + `Dimensions (${unitLabel()})`.padEnd(24) + 'Edge banding');
   lines.push('  ' + '-'.repeat(70));
   for (const panel of panels) {
-    const dims = `${panel.cutWidth.toFixed(0)} x ${panel.cutHeight.toFixed(0)} x ${panel.cutThickness.toFixed(0)}`.padEnd(23);
+    const dims = `${formatLength(panel.cutWidth)} x ${formatLength(panel.cutHeight)} x ${formatLength(panel.cutThickness)} ${unitLabel()}`.padEnd(23);
     const edgeBanding = panel.edgeBanding || {};
     const edgeParts = [edgeBanding.top ? 'top' : '', edgeBanding.bottom ? 'bottom' : '', edgeBanding.left ? 'left' : '', edgeBanding.right ? 'right' : ''].filter(Boolean);
     lines.push(`    ${panel.name.padEnd(22)}${dims}${edgeParts.length > 0 ? edgeParts.join('/') : '-'}`);
+    lines.push(`      Stock: ${panel.materialLabel || '-'} · ${stockDimension(panel)}`);
+    for (const groove of panel.grooves || []) {
+      if (groove.depth > 0) lines.push(`      Back rebate: ${dimension(groove.depth)} deep, inside face; footprint on GROOVE layer`);
+    }
   }
   lines.push('');
   lines.push('--- End of manifest ---');
@@ -339,10 +345,11 @@ function generateProjectManifest(project, panels, nestingPlan) {
   lines.push(`Sheets:       ${nestingPlan?.totalSheets || 0}`);
   lines.push(`Utilization:  ${nestingPlan ? `${(nestingPlan.utilization * 100).toFixed(1)}%` : '0.0%'}`);
   lines.push('');
+  lines.push(`Units: ${unitLabel()} (DXF geometry uses the same units)`);
   lines.push('CABINETS');
   for (const cabinet of project?.cabinets || []) {
     lines.push(`  ${cabinet.name}  x${cabinet.qty}`);
-    lines.push(`    ${cabinet.config.width} x ${cabinet.config.height} x ${cabinet.config.depth} mm`);
+    lines.push(`    ${cabinet.config.width} x ${cabinet.config.height} x ${dimension(cabinet.config.depth)}`);
   }
   lines.push('');
   lines.push('MATERIAL GROUPS');
@@ -367,6 +374,11 @@ function triggerDownload(blob, filename) {
 export function downloadPanelDxf(panel) {
   const filename = `${safeName(panel.name)}.dxf`;
   triggerDownload(new Blob([panelToDxf(panel)], { type: 'application/dxf' }), filename);
+}
+
+export function downloadSheetDxf(sheet, options = {}) {
+  const filename = `${safeName(sheet.materialLabel || 'Sheet Stock')}-${safeName(stockDimension(sheet))}-sheet-${sheet.index + 1}.dxf`;
+  triggerDownload(new Blob([sheetToDxf(sheet, options)], { type: 'application/dxf' }), filename);
 }
 
 export function downloadProjectFile(project) {

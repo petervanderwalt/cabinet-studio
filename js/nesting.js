@@ -1,3 +1,4 @@
+import { dimension, formatLength, stockDimension, unitLabel } from './units.js?v=20261020h';
 function clampPositive(value, fallback) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : fallback;
@@ -25,8 +26,8 @@ const PACKING_STRATEGIES = [
 
 function materialKey(panel) {
   const thickness = Number(panel.cutThickness || 0);
-  const label = panel.materialLabel || `${thickness}mm stock`;
-  return `${label}__${thickness}`;
+  const label = panel.materialLabel || `${dimension(thickness)} stock`;
+  return panel.stockKey || `${label}__${thickness}`;
 }
 
 function createSheet(group, index, options) {
@@ -36,6 +37,9 @@ function createSheet(group, index, options) {
     key: group.key,
     title: group.title,
     materialLabel: group.materialLabel,
+    material: group.material,
+    materialColour: group.materialColour,
+    stockUnits: group.stockUnits,
     thickness: group.thickness,
     sheetWidth: options.sheetWidth,
     sheetHeight: options.sheetHeight,
@@ -273,7 +277,7 @@ function placePart(sheet, part, options, orientationBias) {
 }
 
 function buildGroup(title, thickness, panels) {
-  const materialLabel = panels[0]?.materialLabel || `${thickness}mm stock`;
+  const materialLabel = panels[0]?.materialLabel || `${dimension(thickness)} stock`;
   const familyCounts = new Map();
   for (const panel of panels) {
     const width = Number(panel.cutWidth);
@@ -295,7 +299,10 @@ function buildGroup(title, thickness, panels) {
     }));
 
   return {
-    key: `${materialLabel}__${thickness}`,
+    key: panels[0]?.stockKey || `${materialLabel}__${thickness}`,
+    material: panels[0]?.material,
+    materialColour: panels[0]?.materialColour,
+    stockUnits: panels[0]?.stockUnits,
     title,
     materialLabel,
     thickness,
@@ -340,7 +347,7 @@ function packGroup(group, options, strategy) {
     if (!placed) {
       unplaced.push({
         panel: part.panel,
-        reason: `Part does not fit on a ${options.sheetWidth} x ${options.sheetHeight}mm sheet`,
+        reason: `Part does not fit on a ${formatLength(options.sheetWidth)} x ${dimension(options.sheetHeight)} sheet`,
       });
     }
   }
@@ -394,8 +401,8 @@ export function buildNestingPlan(panels, nestingOptions = {}) {
 
   for (const [key, groupedPanels] of groupsByKey.entries()) {
     const thickness = Number(groupedPanels[0]?.cutThickness || 0);
-    const materialLabel = groupedPanels[0]?.materialLabel || `${thickness}mm stock`;
-    const group = buildGroup(`${materialLabel} · ${thickness}mm`, thickness, groupedPanels);
+    const materialLabel = groupedPanels[0]?.materialLabel || `${dimension(thickness)} stock`;
+    const group = buildGroup(`${materialLabel} · ${stockDimension(groupedPanels[0])}`, thickness, groupedPanels);
     const packed = chooseBestPackedGroup(group, options);
     const sheets = packed.sheets;
     const totalPartArea = packed.totalPartArea;
@@ -405,6 +412,10 @@ export function buildNestingPlan(panels, nestingOptions = {}) {
     groups.push({
       key,
       title: group.title,
+      materialLabel: group.materialLabel,
+      material: group.material,
+      materialColour: group.materialColour,
+      stockUnits: group.stockUnits,
       thickness: group.thickness,
       sheets,
       partCount: group.parts.length,

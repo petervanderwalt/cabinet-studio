@@ -1,6 +1,7 @@
+import { formatLength, isImperial, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { downloadProjectFile } from './dxf-writer.js';
+import { downloadProjectFile } from './dxf-writer.js?v=20261020h';
 import {
   autoArrangeProject,
   createProjectFromConfig,
@@ -98,27 +99,36 @@ function bindRoomInputs() {
   ];
 
   pairs.forEach(([id, key]) => {
-    document.getElementById(id)?.addEventListener('change', (event) => {
+    const input = document.getElementById(id);
+    const commit = (event) => {
+      if (!Number.isFinite(readLength(event.target)) || readLength(event.target) === currentProject.layout.room[key]) return;
       currentProject = updateRoom(currentProject, {
-        [key]: Number.parseFloat(event.target.value) || 0,
+        [key]: readLength(event.target),
       });
       persistSeedProject();
       render();
-    });
+    };
+    input?.addEventListener('change', commit);
+    input?.addEventListener('blur', commit);
   });
 }
 
 function bindSelectedCabinetInputs() {
+  for (const id of ['selected-x-input', 'selected-z-input']) {
+    document.getElementById(id)?.addEventListener('blur', event => {
+      if (event.target.value !== event.target.dataset.displayValue) event.target.dispatchEvent(new Event('change'));
+    });
+  }
   document.getElementById('selected-x-input')?.addEventListener('change', (event) => {
-    if (!selectedInstanceId) return;
-    currentProject = updatePlacement(currentProject, selectedInstanceId, { x: Number.parseFloat(event.target.value) || 0 });
+    if (!selectedInstanceId || !Number.isFinite(readLength(event.target))) return;
+    currentProject = updatePlacement(currentProject, selectedInstanceId, { x: readLength(event.target) });
     persistSeedProject();
     render();
   });
 
   document.getElementById('selected-z-input')?.addEventListener('change', (event) => {
-    if (!selectedInstanceId) return;
-    currentProject = updatePlacement(currentProject, selectedInstanceId, { z: Number.parseFloat(event.target.value) || 0 });
+    if (!selectedInstanceId || !Number.isFinite(readLength(event.target))) return;
+    currentProject = updatePlacement(currentProject, selectedInstanceId, { z: readLength(event.target) });
     persistSeedProject();
     render();
   });
@@ -175,6 +185,8 @@ function persistSeedProject() {
 }
 
 function render() {
+  const savedUnits = currentProject?.cabinets?.[0]?.config?.units;
+  if (savedUnits) setUnits(savedUnits);
   currentProject = normalizeProject(currentProject);
   currentInstances = getProjectInstances(currentProject);
   if (!currentInstances.length) {
@@ -225,8 +237,8 @@ function renderInstanceList() {
           <span class="cabinet-badge">${escapeHtml(instance.config.category)}</span>
         </div>
         <div class="cabinet-row-meta">
-          <span>${formatMm(pos.width)} × ${formatMm(pos.depth)} × ${formatMm(pos.height)} mm</span>
-          <span>Rot ${formatMm(placement.rotation || 0)}°</span>
+          <span>${formatMm(pos.width)} × ${formatMm(pos.depth)} × ${formatMm(pos.height)} ${unitLabel()}</span>
+          <span>Rot ${placement.rotation || 0}°</span>
           <span>X ${formatMm(placement.x)}</span>
           <span>Z ${formatMm(placement.z)}</span>
         </div>
@@ -265,16 +277,21 @@ function renderInspectorOnly() {
   setInputValue('selected-x-input', placement.x);
   setInputValue('selected-z-input', placement.z);
   setInputValue('selected-rotation-input', placement.rotation || 0);
-  setInputValue('selected-size', `${formatMm(world.width)} x ${formatMm(world.depth)} x ${formatMm(world.height)} mm`);
+  setInputValue('selected-size', `${formatMm(world.width)} x ${formatMm(world.depth)} x ${formatMm(world.height)} ${unitLabel()}`);
 
   overlayTitle.textContent = selected.label;
-  overlayCopy.textContent = `${capitalize(selected.config.category)} cabinet · X ${formatMm(placement.x)} mm · Z ${formatMm(placement.z)} mm · rotation ${formatMm(placement.rotation || 0)}°${currentSnapPreview?.label ? ` · snap: ${currentSnapPreview.label}` : ''}`;
+  overlayCopy.textContent = `${capitalize(selected.config.category)} cabinet · X ${formatMm(placement.x)} ${unitLabel()} · Z ${formatMm(placement.z)} ${unitLabel()} · rotation ${placement.rotation || 0}°${currentSnapPreview?.label ? ` · snap: ${currentSnapPreview.label}` : ''}`;
 }
 
 function setInputValue(id, value) {
   const input = document.getElementById(id);
   if (!input) return;
   input.value = String(value);
+  if (['room-width-input', 'room-depth-input', 'room-height-input', 'wall-bottom-input', 'selected-x-input', 'selected-z-input'].includes(id)) {
+    lengthInput(input);
+    const label = document.querySelector(`label[for="${id}"]`);
+    if (label) label.textContent = label.textContent.replace(/ \(.*\)$/, '') + ` (${unitLabel()})`;
+  }
 }
 
 class KitchenLayoutViewport {
@@ -551,12 +568,12 @@ class KitchenLayoutViewport {
       width: size.width,
       depth: size.depth,
       x: clamp(
-        snap(point.x - this.drag.offsetX, POSITION_SNAP),
+        snap(point.x - this.drag.offsetX, (isImperial() ? 25.4 / 16 : POSITION_SNAP)),
         -room.width / 2 + size.width / 2,
         room.width / 2 - size.width / 2
       ),
       z: clamp(
-        snap(point.z - this.drag.offsetZ, POSITION_SNAP),
+        snap(point.z - this.drag.offsetZ, (isImperial() ? 25.4 / 16 : POSITION_SNAP)),
         -room.depth / 2 + size.depth / 2,
         room.depth / 2 - size.depth / 2
       ),
@@ -817,8 +834,7 @@ function clamp(value, min, max) {
 }
 
 function formatMm(value) {
-  const number = Number(value) || 0;
-  return Number.isInteger(number) ? String(number) : number.toFixed(1);
+  return formatLength(value);
 }
 
 function capitalize(value) {

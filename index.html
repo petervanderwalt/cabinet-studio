@@ -69,6 +69,7 @@
     }
 
     .topbar {
+      flex-wrap: wrap;
       grid-column: 1 / -1;
       display: flex;
       align-items: center;
@@ -137,9 +138,35 @@
 
     .topbar-actions {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 8px;
       flex: 0 0 auto;
+    }
+
+    .topbar-units {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .topbar-units select {
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid rgba(61, 95, 171, 0.12);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .topbar-units select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
 
     .topbar-btn {
@@ -169,6 +196,34 @@
     .topbar-btn i {
       font-size: 11px;
       color: var(--muted);
+    }
+
+    .topbar-btn-primary {
+      min-height: 40px;
+      padding: 0 18px;
+      margin-left: 6px;
+      border-color: var(--accent-deep);
+      border-radius: 10px;
+      background: var(--accent-deep);
+      color: #ffffff;
+      font-size: 12px;
+      box-shadow: 0 4px 10px rgba(27, 47, 120, 0.2);
+    }
+
+    .topbar-btn-primary i {
+      color: inherit;
+      font-size: 14px;
+    }
+
+    .topbar-btn-primary:hover {
+      background: #14245e;
+      border-color: #14245e;
+      box-shadow: 0 6px 14px rgba(27, 47, 120, 0.28);
+    }
+
+    .topbar-btn-primary:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
     }
 
     .sidebar-shell,
@@ -626,6 +681,7 @@
     }
 
     .field input[type="number"],
+    .field input[data-length],
     .field select {
       width: 100%;
       min-width: 0;
@@ -640,6 +696,7 @@
     }
 
     .field input[type="number"]:focus,
+    .field input[data-length]:focus,
     .field select:focus {
       outline: none;
       border-color: rgba(61, 95, 171, 0.36);
@@ -672,7 +729,7 @@
 
     .drawer-height-row {
       display: grid;
-      grid-template-columns: 24px minmax(0, 1fr) auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto 22px;
       align-items: center;
       gap: 6px;
     }
@@ -682,6 +739,48 @@
       color: var(--muted);
     }
 
+    .drawer-height-lock {
+      position: relative;
+      width: 22px;
+      height: 26px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    @property --drawer-countdown {
+      syntax: '<number>';
+      inherits: false;
+      initial-value: 1;
+    }
+
+    @keyframes drawer-countdown {
+      from { --drawer-countdown: 1; }
+      to { --drawer-countdown: 0; }
+    }
+
+    .drawer-height-lock.is-counting i { visibility: hidden; }
+    .drawer-height-lock.is-counting::after {
+      content: '';
+      position: absolute;
+      width: 15px;
+      height: 15px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: conic-gradient(var(--accent-deep) calc(var(--drawer-countdown) * 1turn), var(--accent-soft) 0);
+      mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+      animation: drawer-countdown 2s linear forwards;
+    }
+
+    .drawer-height-lock.locked { color: var(--accent-deep); background: var(--accent-soft); }
+    .drawer-height-lock:hover { background: var(--accent-soft); }
+    .drawer-height-lock:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
     .drawer-summary-row {
       display: flex;
       align-items: center;
@@ -689,6 +788,16 @@
       margin-top: 4px;
       flex-wrap: wrap;
     }
+    .drawer-summary-message {
+      display: flex;
+      align-items: flex-start;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .drawer-summary-countdown { flex: 0 0 22px; height: 18px; }
+    .drawer-summary-countdown[hidden] { display: none; }
+
     .drawer-summary {
       font-size: 11px;
       font-family: monospace;
@@ -1039,6 +1148,10 @@
       gap: 8px;
     }
 
+    .nesting-stock-group { display: grid; gap: 8px; min-width: 0; }
+    .nesting-stock-group > strong { font-size: 11px; color: var(--text); }
+    .nesting-stock-pair { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.25fr) minmax(0, 0.9fr); gap: 6px; }
+
     .nesting-stock-field {
       display: flex;
       flex-direction: column;
@@ -1147,6 +1260,8 @@
       align-items: flex-start;
       margin-bottom: 8px;
     }
+
+    .nesting-sheet-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
 
     .nesting-sheet-head h5 {
       font-size: 12px;
@@ -1360,6 +1475,13 @@
 
       .topbar-actions {
         width: 100%;
+        flex-wrap: wrap;
+      }
+
+      .topbar-btn-primary {
+        width: 100%;
+        justify-content: center;
+        margin-left: 0;
       }
 
       .sidebar-header,
@@ -1398,6 +1520,13 @@
         </div>
       </div>
       <div class="topbar-actions">
+        <label class="topbar-units" for="units-select">
+          <span>Units</span>
+          <select id="units-select">
+            <option value="metric">Metric (mm)</option>
+            <option value="imperial">Imperial (inches)</option>
+          </select>
+        </label>
         <button class="topbar-btn" type="button" id="import-btn">
           <i class="fa-solid fa-file-import"></i>
           <span>Import</span>
@@ -1410,9 +1539,9 @@
           <i class="fa-solid fa-ruler-combined"></i>
           <span>Kitchen Layout</span>
         </button>
-        <button class="topbar-btn" type="button" id="export-zip-btn">
+        <button class="topbar-btn topbar-btn-primary" type="button" id="export-zip-btn">
           <i class="fa-solid fa-file-export"></i>
-          <span>Manufacturing ZIP</span>
+          <span>Export Manufacturing ZIP</span>
         </button>
       </div>
     </div>
@@ -1500,6 +1629,6 @@
       <div class="modal-body" id="sheet-zoom-body"></div>
     </div>
   </div>
-  <script type="module" src="js/main.js?v=20260720b"></script>
+  <script type="module" src="js/main.js?v=20261020h"></script>
 </body>
 </html>

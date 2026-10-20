@@ -1,3 +1,4 @@
+import { splitStockAppearance } from './material-presets.js?v=20261020f';
 // cabinet-math.js — Pure function: Cabinet config → Panel[]
 // No UI, no three.js — unit-testable in isolation.
 
@@ -27,6 +28,14 @@ export function inferFrontMode(cabinet) {
   if (explicitMode === 'doors' || explicitMode === 'drawers') return explicitMode;
   if ((cabinet?.drawers?.count ?? 0) > 0) return 'drawers';
   return 'doors';
+}
+
+function isWallCabinet(cabinet) {
+  return cabinet.category === 'wall';
+}
+
+function hasToeKick(cabinet) {
+  return !isWallCabinet(cabinet) && cabinet.toeKick;
 }
 
 export function defaultCabinet() {
@@ -99,8 +108,8 @@ export function computePanels(cabinet) {
   const isFrameless = cabinet.construction === 'frameless';
   const isInset = cabinet.overlay.type === 'inset';
 
-  const tkHeight = cabinet.category === 'base' && cabinet.toeKick ? cabinet.toeKick.height : 0;
-  const tkSetback = cabinet.category === 'base' && cabinet.toeKick ? cabinet.toeKick.setback : 0;
+  const tkHeight = hasToeKick(cabinet) ? cabinet.toeKick.height : 0;
+  const tkSetback = hasToeKick(cabinet) ? cabinet.toeKick.setback : 0;
   const bottomY = tkHeight;
 
   const hw = cabinet.hardware;
@@ -117,7 +126,9 @@ export function computePanels(cabinet) {
   const drawerHandleTopOffset = hw.drawerHandleTopOffset ?? DEFAULT_VALUES.drawerHandleTopOffset;
   const topClearance = DEFAULT_VALUES.topClearance;
   const stretcherDepth = DEFAULT_VALUES.stretcherDepth;
-  const grooveDepth = DEFAULT_VALUES.backGrooveDepth;
+  // Rebate engagement is measured into the carcass stock; its plan width
+  // follows the back thickness, not the machining depth.
+  const grooveDepth = Math.min(DEFAULT_VALUES.backGrooveDepth, T / 2);
 
   const W = cabinet.width;
   const H = cabinet.height;
@@ -129,6 +140,12 @@ export function computePanels(cabinet) {
 
   const sideDepth = isInset ? D : Math.max(0, D - Td);
   const ffDepthOff = isFrameless ? 0 : T; // face frame occupies front T mm
+  const isGroovedBack = cabinet.backMount === 'grooved-in';
+  const backFrontZ = isGroovedBack ? sideDepth - Tb : sideDepth;
+  const interiorDepth = Math.max(0, backFrontZ - ffDepthOff);
+  const drawerDepth = Math.max(0, interiorDepth - 20);
+  const backBottomY = bottomY + T - grooveDepth;
+  const backTopY = H - T + grooveDepth;
   const gHalf = g / 2;
 
   // ---- Helper to create panel objects ----
@@ -142,8 +159,15 @@ export function computePanels(cabinet) {
       holes = [], notches = [], grooves = [],
       edgeBanding = { top: false, bottom: false, left: false, right: false },
     } = opts;
+    const selectedStock = Object.values(cabinet.materials.stockSelections || {}).find(s =>
+      (s.colour && s.colour !== 'Unspecified' ? `${s.material} ${s.colour}` : s.material) === materialLabel && Math.abs(s.thickness - cutThickness) < 1e-8);
+    const stock = selectedStock ? {material:selectedStock.material, colour:selectedStock.colour || 'Unspecified'} : splitStockAppearance(materialLabel);
     return {
       id, name, type, color, materialLabel,
+      material: stock.material,
+      materialColour: stock.colour,
+      stockUnits: selectedStock?.units || 'metric',
+      stockKey: JSON.stringify([stock.material.toLowerCase(), stock.colour.toLowerCase(), cutThickness]),
       cutWidth, cutHeight, cutThickness,
       posX, posY, posZ,
       sizeX, sizeY, sizeZ,
@@ -179,7 +203,8 @@ export function computePanels(cabinet) {
   const backMaterialLabel = cabinet.materials.backMaterial || 'Back Panel';
   const doorMaterialLabel = cabinet.materials.doorMaterial || 'Door Material';
   const drawerFrontMaterialLabel = cabinet.materials.drawerFrontMaterial || doorMaterialLabel;
-  const drawerBoxMaterialLabel = cabinet.materials.drawerBoxMaterial || 'Drawer Box Material';
+  const drawerBoxMaterialLabel = cabinet.materials.drawerSideMaterial || cabinet.materials.drawerBoxMaterial || 'Drawer Box Material';
+  const drawerBottomMaterialLabel = cabinet.materials.drawerBottomMaterial || cabinet.materials.drawerBoxMaterial || 'Drawer Bottom Material';
 
   // ============================================================
   // SIDE PANELS
@@ -216,10 +241,11 @@ export function computePanels(cabinet) {
       sizeZ: sideCutDepth,
       notches: notchArr,
       grooves: cabinet.backMount === 'grooved-in' ? [{
-        x: Math.max(0, sideCutDepth - grooveDepth),
-        y: bottomY + T,
-        width: grooveDepth,
-        height: Math.max(0, H - bottomY - T),
+        x: Math.max(0, sideCutDepth - Tb),
+        y: backBottomY,
+        width: Tb,
+        height: Math.max(0, backTopY - backBottomY),
+        depth: grooveDepth,
         purpose: 'back-panel-groove',
       }] : [],
       edgeBanding: { top: false, bottom: false, left: false, right: true },
@@ -229,7 +255,6 @@ export function computePanels(cabinet) {
     if (drawerCount > 0 && cabinet.drawers.heights.length === drawerCount && sideCutDepth > 80) {
       const drawerBoxTopInset = 24;
       const drawerBoxBottomInset = 12;
-      const drawerDepth = Math.max(50, sideDepth - ffDepthOff - 20);
       const slideHoleInset = Math.min(64, Math.max(20, drawerDepth * 0.18));
       const slideHoleXs = [slideHoleInset, drawerDepth / 2, drawerDepth - slideHoleInset];
       let drawerYOffset = isFrameless || tkHeight > 0 ? tkHeight + topClearance : 0;
@@ -263,7 +288,9 @@ export function computePanels(cabinet) {
         const doorH = H - (isFrameless ? tkHeight + topClearance : tkHeight) - topClearance;
         const hingeCount = H > 1300 ? 3 : 2;
         const hingeVertPositions = hingeCount === 2 ? [100, doorH - 100] : [100, doorH / 2, doorH - 100];
-        const hingePlateDepths = [hingePlateFrontHoleOffset, hingePlateRearHoleOffset];
+        const hingePlateDepths = hw.hingePlateSecondRow === false
+          ? [hingePlateFrontHoleOffset]
+          : [hingePlateFrontHoleOffset, hingePlateRearHoleOffset];
         const hingePlateVerticalOffset = hingePlateHoleSpacing / 2;
         for (const hy of hingeVertPositions) {
           for (const x of hingePlateDepths) {
@@ -278,6 +305,7 @@ export function computePanels(cabinet) {
     // has front edge at x=cutWidth, back edge at x=0.
     if (!isLeft) {
       for (const h of panel.holes) { h.x = sideCutDepth - h.x; }
+      for (const groove of panel.grooves) { groove.x = sideCutDepth - groove.x - groove.width; }
       for (const n of panel.notches) { n.x = sideCutDepth - n.x - n.width; }
     }
 
@@ -307,9 +335,10 @@ export function computePanels(cabinet) {
       sizeZ: bottomD,
       grooves: cabinet.backMount === 'grooved-in' ? [{
         x: 0,
-        y: Math.max(0, bottomD - grooveDepth),
+        y: Math.max(0, bottomD - Tb),
         width: bottomW,
-        height: grooveDepth,
+        height: Tb,
+        depth: grooveDepth,
         purpose: 'back-panel-groove',
       }] : [],
       edgeBanding: { top: false, bottom: false, left: false, right: true },
@@ -342,9 +371,10 @@ export function computePanels(cabinet) {
         sizeZ: topDepth,
         grooves: cabinet.backMount === 'grooved-in' ? [{
           x: 0,
-          y: Math.max(0, topDepth - grooveDepth),
+          y: Math.max(0, topDepth - Tb),
           width: topOrStretcherW,
-          height: grooveDepth,
+          height: Tb,
+          depth: grooveDepth,
           purpose: 'back-panel-groove',
         }] : [],
         edgeBanding: { top: false, bottom: false, left: false, right: true },
@@ -387,9 +417,10 @@ export function computePanels(cabinet) {
         sizeZ: topOrStretcherD,
         grooves: cabinet.backMount === 'grooved-in' ? [{
           x: 0,
-          y: Math.max(0, topOrStretcherD - grooveDepth),
+          y: Math.max(0, topOrStretcherD - Tb),
           width: topOrStretcherW,
-          height: grooveDepth,
+          height: Tb,
+          depth: grooveDepth,
           purpose: 'back-panel-groove',
         }] : [],
         edgeBanding: { top: false, bottom: false, left: false, right: true },
@@ -402,7 +433,7 @@ export function computePanels(cabinet) {
   // ============================================================
   if (cabinet.backMount === 'grooved-in') {
     const backW = W - 2 * T + 2 * grooveDepth;
-    const backH = H - T - bottomY;
+    const backH = backTopY - backBottomY;
     if (backW > 0 && backH > 0) {
       panels.push(makePanel({
         id: 'back',
@@ -414,8 +445,8 @@ export function computePanels(cabinet) {
         cutHeight: backH,
         cutThickness: Tb,
         posX: W / 2,
-        posY: bottomY + T + (backH) / 2,
-        posZ: sideDepth - grooveDepth + Tb / 2,
+        posY: (backBottomY + backTopY) / 2,
+        posZ: backFrontZ + Tb / 2,
         sizeX: backW,
         sizeY: backH,
         sizeZ: Tb,
@@ -452,7 +483,7 @@ export function computePanels(cabinet) {
   if (shelfCount > 0) {
     const shelfThk = cabinet.shelves?.thickness ?? T;
     const shelfW = W - 2 * T;
-    const shelfD = sideDepth - ffDepthOff;
+    const shelfD = isGroovedBack ? Math.max(0, interiorDepth - 2) : interiorDepth;
     if (shelfW > 0 && shelfD > 0) {
       // Available interior height between bottom panel top and top/stretcher bottom
       const shelfTopY = cabinet.hasTop ? H - T : H - T; // bottom of top panel/stretchers
@@ -567,7 +598,7 @@ export function computePanels(cabinet) {
     }
 
     // Bottom rail
-    const bottomRailY = cabinet.category === 'base' ? tkHeight + bottomRailW / 2 : bottomRailW / 2;
+    const bottomRailY = hasToeKick(cabinet) ? tkHeight + bottomRailW / 2 : bottomRailW / 2;
     if (railLen > 0) {
       panels.push(makePanel({
         id: 'rail-bottom',
@@ -678,7 +709,8 @@ export function computePanels(cabinet) {
       }
 
       const handleCenterX = hingeSide === 'left' ? dw - handleEdgeOffset : handleEdgeOffset;
-      addVerticalHandleHoles(panel, handleCenterX, doorHandleHeight);
+      const handleCenterY = !isWallCabinet(cabinet) && dh >= 1600 ? dh / 2 : doorHandleHeight;
+      addVerticalHandleHoles(panel, handleCenterX, handleCenterY);
 
       panels.push(panel);
       panel.hingeSide = hingeSide;
@@ -705,7 +737,6 @@ export function computePanels(cabinet) {
       const drawerClr = cabinet.drawers.sideClearance ?? 10;
       const drawerBoxTopInset = 24;
       const drawerBoxBottomInset = 12;
-      const drawerDepth = Math.max(50, sideDepth - ffDepthOff - 20);
       const interW = W - 2 * T;
 
       let yOffset = isFrameless || tkHeight > 0 ? tkHeight + topClearance : 0;
@@ -821,7 +852,7 @@ export function computePanels(cabinet) {
               name: `Drawer ${i + 1} Bottom`,
               type: 'drawer-box',
               color: drawerBoxColor,
-              materialLabel: drawerBoxMaterialLabel,
+              materialLabel: drawerBottomMaterialLabel,
               cutWidth: bottomW,
               cutHeight: drawerDepth,
               cutThickness: drawerBottomThk,
@@ -887,7 +918,7 @@ export function validateCabinet(cabinet) {
       const g = cabinet.reveal ?? DEFAULT_VALUES.reveal;
       const sumH = dh.reduce((a, b) => a + b, 0);
       const interGaps = (drawerCount - 1) * g;
-      const expectedH = cabinet.height - (cabinet.category === 'base' && cabinet.toeKick ? cabinet.toeKick.height : 0) - DEFAULT_VALUES.topClearance - DEFAULT_VALUES.topClearance;
+      const expectedH = cabinet.height - (hasToeKick(cabinet) ? cabinet.toeKick.height : 0) - DEFAULT_VALUES.topClearance - DEFAULT_VALUES.topClearance;
       if (Math.abs(sumH + interGaps - expectedH) > 2) {
         warnings.push(`Drawer heights sum to ${sumH + interGaps}mm but opening height is ${expectedH}mm (diff ${Math.abs(sumH + interGaps - expectedH).toFixed(1)}mm)`);
       }
