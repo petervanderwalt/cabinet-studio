@@ -386,6 +386,10 @@ function chooseBestPackedGroup(group, options) {
 
 export function buildNestingPlan(panels, nestingOptions = {}) {
   const options = normalizeOptions(nestingOptions);
+  const requestedGap = options.gap;
+  // Cabineo's first housing bore runs 3.9 mm past its joining edge.
+  const machiningGap = panels.reduce((gap,p) => Math.max(gap, 2 * (Number(p.machiningMargin) || 0)), 0);
+  options.gap = Math.max(options.gap, machiningGap);
   const groupsByKey = new Map();
 
   for (const panel of panels) {
@@ -431,6 +435,7 @@ export function buildNestingPlan(panels, nestingOptions = {}) {
 
   return {
     options,
+    machiningGapApplied: options.gap > requestedGap,
     groups,
     unplaced,
     totalSheets,

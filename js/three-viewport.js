@@ -4,7 +4,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createPanelMaterial, disposePanelMaterial } from './viewport-materials.js';
 
 export class CabinetViewport {
-  constructor(container) {
+  constructor(container, onPanelSelect) {
+    this.onPanelSelect = onPanelSelect;
     this.container = container;
     this.panelGroup = new THREE.Group();
     this.interactiveMeshes = [];
@@ -96,6 +97,7 @@ export class CabinetViewport {
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
     const dom = this.renderer.domElement;
+    dom.addEventListener('pointerdown', (e) => { this._pointerDown = { x: e.clientX, y: e.clientY }; });
     dom.addEventListener('click', (e) => this._onClick(e));
     dom.addEventListener('pointermove', (e) => this._onPointerMove(e));
   }
@@ -106,7 +108,7 @@ export class CabinetViewport {
     this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const meshes = this.interactiveMeshes.map(e => e.mesh);
-    const intersects = this.raycaster.intersectObjects(meshes);
+    const intersects = this.raycaster.intersectObjects(meshes, false);
     return intersects.length > 0 ? intersects[0].object : null;
   }
 
@@ -119,10 +121,14 @@ export class CabinetViewport {
   }
 
   _onClick(event) {
+    if (this._pointerDown && Math.hypot(event.clientX - this._pointerDown.x, event.clientY - this._pointerDown.y) > 5) return;
     const hit = this._hitTest(event.clientX, event.clientY);
     if (hit) {
       const entry = this.interactiveMeshes.find(e => e.mesh === hit);
-      if (entry) this._toggleAnim(entry.panel);
+      if (entry) {
+        this.onPanelSelect?.(entry.panel);
+        this._toggleAnim(entry.panel);
+      }
     }
   }
 
@@ -240,7 +246,6 @@ export class CabinetViewport {
     mesh.position.set(offsetX, 0, p.posZ);
     pivot.add(mesh);
 
-    this.interactiveMeshes.push({ mesh, panel: p });
     this.animStates.set(p.id, {
       type: 'door',
       pivotGroup: pivot,
@@ -268,7 +273,6 @@ export class CabinetViewport {
   _addDrawerGroup(panels) {
     const group = new THREE.Group();
     let frontPanel = null;
-    let frontMesh = null;
 
     for (const p of panels) {
       const mesh = this._buildPanelMesh(p);
@@ -276,15 +280,11 @@ export class CabinetViewport {
       group.add(mesh);
       if (p.type === 'drawer') {
         frontPanel = p;
-        frontMesh = mesh;
       }
     }
 
     this.panelGroup.add(group);
 
-    if (frontMesh) {
-      this.interactiveMeshes.push({ mesh: frontMesh, panel: frontPanel });
-    }
 
     const drawDepth = frontPanel?.drawDepth || 400;
     this.animStates.set(frontPanel?.id || `drawer-${Date.now()}`, {
@@ -316,6 +316,7 @@ export class CabinetViewport {
     const material = createPanelMaterial(p);
 
     const mesh = new THREE.Mesh(geometry, material);
+    this.interactiveMeshes.push({ mesh, panel: p });
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this._addEdgeHelper(mesh, geometry);
@@ -347,11 +348,22 @@ export class CabinetViewport {
   }
 
   _addHoleMarkers(mesh, p) {
-    if (!p.holes || p.holes.length === 0) return;
-
-    for (const hole of p.holes) {
+    for (const hole of p.holes || []) {
       const marker = this._buildHoleMarker(hole, p);
       if (marker) mesh.add(marker);
+    }
+    for (const bore of p.edgeBores || []) {
+      const marker = new THREE.Mesh(new THREE.CircleGeometry(bore.diameter / 2, 24),
+        new THREE.MeshBasicMaterial({ color: 0xb66a20, side: THREE.DoubleSide, depthWrite: false }));
+      if (p.id === 'side-left' || p.id === 'side-right') {
+        const z = p.id === 'side-right' ? p.cutWidth - bore.x : bore.x;
+        marker.position.set(0, p.sizeY / 2 + 0.8, z - p.sizeZ / 2);
+        marker.rotation.x = Math.PI / 2;
+      } else {
+        marker.position.set((bore.edge === 'x-min' ? -1 : 1) * (p.sizeX / 2 + 0.8), bore.offset - p.sizeY / 2, bore.y - p.sizeZ / 2);
+        marker.rotation.y = Math.PI / 2;
+      }
+      mesh.add(marker);
     }
 
     this._addDrawerRunnerReferenceLines(mesh, p);
@@ -393,7 +405,7 @@ export class CabinetViewport {
       line.position.set(
         faceX,
         holes[0].y - p.cutHeight / 2,
-        ((minX + maxX) / 2) - p.cutWidth / 2,
+        (p.id === 'side-right' ? p.cutWidth - (minX + maxX) / 2 : (minX + maxX) / 2) - p.cutWidth / 2,
       );
       line.renderOrder = 9;
       mesh.add(line);
@@ -401,7 +413,7 @@ export class CabinetViewport {
   }
 
   _buildHoleMarker(hole, p) {
-    const radius = hole.purpose === 'hinge-cup'
+    const radius = ['hinge-cup','cam-housing','cabineo-housing'].includes(hole.purpose)
       ? (hole.diameter || 35) / 2
       : Math.max(3, (hole.diameter || 5) * 0.9);
     const geometry = new THREE.CircleGeometry(radius, 24);
@@ -425,9 +437,13 @@ export class CabinetViewport {
       marker.rotation.y = Math.PI / 2;
       marker.position.x = p.id.includes('side-left') ? -p.sizeX / 2 - offset : p.sizeX / 2 + offset;
     } else if (p.id === 'side-left' || p.id === 'side-right') {
-      marker.position.set(0, hole.y - p.cutHeight / 2, hole.x - p.cutWidth / 2);
+      const z = p.id === 'side-right' ? p.cutWidth - hole.x : hole.x;
+      marker.position.set(0, hole.y - p.cutHeight / 2, z - p.cutWidth / 2);
       marker.rotation.y = Math.PI / 2;
       marker.position.x = p.id === 'side-left' ? p.sizeX / 2 + offset : -p.sizeX / 2 - offset;
+    } else if (['alignment-dowel', 'cam-housing', 'cam-bolt-pilot', 'cabineo-housing','cabineo-pilot'].includes(hole.purpose)) {
+      marker.position.set(hole.x - p.sizeX / 2, (hole.face === 'top' ? 1 : -1) * (p.sizeY / 2 + offset), hole.y - p.sizeZ / 2);
+      marker.rotation.x = Math.PI / 2;
     } else {
       marker.position.set(hole.x - p.cutWidth / 2, hole.y - p.cutHeight / 2, p.sizeZ / 2 + offset);
     }
@@ -442,6 +458,11 @@ export class CabinetViewport {
       case 'hinge-cup':
       case 'hinge-mounting-plate': return 0x5a84d8;
       case 'shelf-pin': return 0x63a3b0;
+      case 'alignment-dowel': return 0xb66a20;
+      case 'cam-housing':
+      case 'cam-bolt-pilot': return 0x9b5722;
+      case 'cabineo-housing':
+      case 'cabineo-pilot': return 0x7b548f;
       case 'drawer-runner-reference':
       case 'drawer-slide-reference': return 0x2747d9;
       default: return 0x28456f;

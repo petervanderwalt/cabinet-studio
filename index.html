@@ -584,6 +584,15 @@
       border-top: 1px solid rgba(61, 95, 171, 0.06);
     }
 
+    .field.hardware-library-field {
+      grid-template-columns: minmax(0, 1fr);
+      margin-top: 8px;
+    }
+
+    .hardware-reference-image { display: block; width: 88px; height: 88px; object-fit: contain; background: white; border-radius: 6px; margin: 6px 0; }
+    .connector-references { margin-top: 12px; font-size: 11px; }
+    .connector-references summary { cursor: pointer; font-weight: 700; }
+
     .section-blurb {
       margin: 0 0 8px;
       font-size: 11px;
@@ -1021,6 +1030,12 @@
       border-color: rgba(61, 95, 171, 0.18);
     }
 
+    .panel-info-row.selected {
+      background: #e8f0ff;
+      border-color: var(--accent);
+      box-shadow: inset 3px 0 var(--accent);
+    }
+
     .panel-row-main {
       display: flex;
       flex-direction: column;
@@ -1043,7 +1058,10 @@
       background: #f4f8ff;
       overflow: hidden;
       padding: 5px;
+      cursor: zoom-in;
     }
+
+    .panel-row-preview:focus-visible { outline: 3px solid var(--accent); }
 
     .panel-row-preview svg {
       display: block;
@@ -1369,6 +1387,8 @@
       min-width: 900px;
     }
 
+    .modal-body .panel-preview-svg { display: block; width: 100%; height: 65vh; min-height: 360px; }
+
     .hidden { display: none !important; }
 
     .tab-bar {
@@ -1622,13 +1642,13 @@
           <h4 id="sheet-zoom-title">Sheet Review</h4>
           <p id="sheet-zoom-meta"></p>
         </div>
-        <button class="modal-close" id="sheet-zoom-close" type="button" aria-label="Close sheet review">
+        <button class="modal-close" id="sheet-zoom-close" type="button" aria-label="Close preview">
           <i class="fa-solid fa-xmark" aria-hidden="true"></i>
         </button>
       </div>
       <div class="modal-body" id="sheet-zoom-body"></div>
     </div>
   </div>
-  <script type="module" src="js/main.js?v=20261020p"></script>
+  <script type="module" src="js/main.js?v=20261029a"></script>
 </body>
 </html>

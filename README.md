@@ -16,6 +16,8 @@ Cabinet Studio gives you a single browser workspace for cabinet sizing, front co
 
 ## Features
 
+Planned enhancements and beta feedback are tracked in [TODO.md](TODO.md).
+
 - Parametric cabinet dimensions for width, height, depth, materials, overlay, reveal, toe kick, and construction style.
 - Door and drawer configurations with animated 3D preview.
 - Shelf pin, hinge plate, drawer runner, and drawer slide reference hole generation.
@@ -38,6 +40,18 @@ Material-aware nesting helps separate parts by sheet stock so machining output s
 ![Automatic nesting preview](docs/automatic-nesting.png)
 
 ## Hardware Configuration
+
+The **Hardware** library includes cup/plate patterns, 5 mm and ¼-inch shelf supports, metric/imperial pull centres, knobs, Accuride 3832E runner fit and matched carcass dowels. Presets retain custom overrides and saved-project dimensions. Pocket screws are a manual-jig assembly option.
+
+Manufacturing ZIPs include hardware counts and a separate `machining-schedule.json` for mating face/edge operations. Explicit face/depth holes use separate DXF layers; edge bores require a separate setup and are never exported as face circles. Accuride fit does not generate mounting holes. Undermount and connector families are tracked for model-specific implementation.
+
+See [hardware research, supported patterns and export setup](docs/hardware-library.md).
+
+Pocketed connectors now include **Hettich Rastex 15 + Twister for 18 mm stock**, with cam pockets, bolt pilots and separate edge passages. The [connector guide](docs/pocket-connectors.md) includes supplier pictures and datasheets for Rastex, Minifix, Rafix, Cabineo and Clamex. Other connector families remain reference-only.
+
+Large pull patterns move within the panel bounds with a notice; impossible patterns produce a warning. Click a part thumbnail to open a larger preview.
+
+Joinery presets include supplier pictures for dowels, pocket screws and Cabineo, plus a dado illustration. **Through dados** extend the carcass bottom into both sides, while shelves remain adjustable on pins; their cut widths, 3D solids, nesting and DXFs include that engagement. **Cabineo 8 / 12 (surface mounted)** generate Lamello's overlapping housing bores and mating pilots. Nesting accounts for their open-edge machining. Other Cabineo mounting variants remain unsupported.
 
 Hardware settings are configurable at project level, including drawer sliders, handles, and hinges, so drilling and clearances track the construction method you plan to build.
 

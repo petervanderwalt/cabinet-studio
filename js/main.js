@@ -1,13 +1,14 @@
 import { dimension, formatLength, getUnits, lengthInput, readLength, stockDimension, unitLabel } from './units.js?v=20261020h';
 // main.js - Application entry point
-import { CabinetViewport } from './three-viewport.js?v=20261020o';
-import { CabinetForm } from './form-ui.js?v=20261020p';
-import { computePanels } from './cabinet-math.js?v=20261020o';
-import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261020o';
-import { buildNestingPlan } from './nesting.js?v=20261020o';
+import { CabinetViewport } from './three-viewport.js?v=20261029a';
+import { CabinetForm } from './form-ui.js?v=20261022e';
+import { computePanels } from './cabinet-math.js?v=20261022e';
+import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261022e';
+import { buildNestingPlan } from './nesting.js?v=20261022e';
 import { applyGlobalMaterialSelections, STOCK_FIELDS, sharedStockChoices, splitStockAppearance } from './material-presets.js?v=20261020f';
 import {
   addCabinet,
+  buildProjectPanels,
   createProjectFromConfig,
   duplicateCabinet,
   getActiveCabinet,
@@ -16,7 +17,7 @@ import {
   setActiveCabinet,
   updateActiveCabinetConfig,
   updateCabinetMeta,
-} from './project-io.js?v=20261020e';
+} from './project-io.js?v=20261022e';
 
 let viewport = null;
 let form = null;
@@ -25,6 +26,7 @@ let currentProjectPanels = [];
 let currentConfig = null;
 let currentNestingPlan = null;
 let currentProject = null;
+let reviewReturnFocus = null;
 let projectTabMenuCabinetId = null;
 let renamingCabinetId = null;
 const LAYOUT_SEED_KEY = 'cabinet-studio-layout-seed';
@@ -33,7 +35,7 @@ function init() {
   const formContainer = document.getElementById('form-container');
   const viewportContainer = document.getElementById('viewport-container');
 
-  viewport = new CabinetViewport(viewportContainer);
+  viewport = new CabinetViewport(viewportContainer, selectPanelPreview);
   initResultsTabs();
   initSheetModal();
   initProjectControls();
@@ -176,32 +178,6 @@ function syncProjectFromLayoutSeed() {
   }
 }
 
-function buildProjectPanels(project) {
-  const normalized = normalizeProject(project);
-  const multiCabinet = normalized.cabinets.length > 1;
-  const projectPanels = [];
-
-  normalized.cabinets.forEach((cabinet) => {
-    const basePanels = computePanels(cabinet.config);
-    const copies = Math.max(1, Number(cabinet.qty) || 1);
-    for (let copyIndex = 0; copyIndex < copies; copyIndex += 1) {
-      for (const panel of basePanels) {
-        const instanceSuffix = copies > 1 ? ` #${copyIndex + 1}` : '';
-        const labelPrefix = multiCabinet ? `${cabinet.name} · ` : '';
-        projectPanels.push({
-          ...structuredClone(panel),
-          id: `${cabinet.id}__${copyIndex + 1}__${panel.id}`,
-          name: `${labelPrefix}${panel.name}${instanceSuffix}`,
-          sourceCabinetId: cabinet.id,
-          sourceCabinetName: cabinet.name,
-          sourceCopyIndex: copyIndex + 1,
-        });
-      }
-    }
-  });
-
-  return projectPanels;
-}
 
 function initProjectControls() {
   const addBtn = document.getElementById('project-add-cabinet-btn');
@@ -389,6 +365,10 @@ function initSheetModal() {
     if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
       closeSheetModal();
     }
+    if (event.key === 'Tab' && !modal.classList.contains('hidden')) {
+      event.preventDefault();
+      closeBtn.focus();
+    }
   });
 }
 
@@ -410,6 +390,19 @@ function initResultsTabs() {
   partsTab.addEventListener('click', () => activate('parts'));
   nestingTab.addEventListener('click', () => activate('nesting'));
   activate('parts');
+}
+
+function selectPanelPreview(panel) {
+  const rows = document.querySelectorAll('#panel-list .panel-info-row');
+  let selectedRow = null;
+  for (const row of rows) {
+    const selected = row.dataset.panelId === panel.id;
+    row.classList.toggle('selected', selected);
+    if (selected) selectedRow = row;
+  }
+  if (!selectedRow) return;
+  document.getElementById('results-parts-tab').click();
+  selectedRow.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
 }
 
 function updatePanelList(panels) {
@@ -434,6 +427,8 @@ function updatePanelList(panels) {
     const edgeParts = [eb.top ? 'top' : '', eb.bottom ? 'bottom' : '', eb.left ? 'left' : '', eb.right ? 'right' : ''].filter(Boolean);
     const metaParts = [];
     if (holes > 0) metaParts.push(`${holes} holes`);
+    if (panel.edgeBores?.length) metaParts.push(`${panel.edgeBores.length} edge bores (separate setup)`);
+    if (panel.hardwareWarnings?.length) metaParts.push('Hardware warnings — see settings / manifest');
     if (notches > 0) metaParts.push(`${notches} notches`);
     if (grooves > 0) metaParts.push(`${grooves} grooves`);
     if (panel.detailPaths?.length) metaParts.push(panel.detailPathsClosed === false ? `${panel.detailPaths.length} slat lines` : 'Routed front detail');
@@ -441,6 +436,7 @@ function updatePanelList(panels) {
 
     const row = document.createElement('div');
     row.className = 'panel-info-row';
+    row.dataset.panelId = panel.id;
     const main = document.createElement('div');
     main.className = 'panel-row-main';
     main.append(
@@ -462,9 +458,13 @@ function updatePanelList(panels) {
     actions.appendChild(btn);
     main.appendChild(actions);
 
-    const preview = document.createElement('div');
+    const preview = document.createElement('button');
+    preview.type = 'button';
     preview.className = 'panel-row-preview';
+    preview.setAttribute('aria-label', `Enlarge ${panel.name} preview`);
     preview.innerHTML = buildPanelPreviewSvg(panel);
+    preview.addEventListener('click', () => openReviewModal(panel.name,
+      `${formatLength(panel.cutWidth)} x ${formatLength(panel.cutHeight)} x ${dimension(panel.cutThickness)} · ${panel.materialLabel || 'Panel'} · ${(panel.holes || []).length} face holes · ${(panel.edgeBores || []).length} edge bores (separate setup)`, buildPanelPreviewSvg(panel)));
 
     row.append(main, preview);
     list.appendChild(row);
@@ -510,9 +510,10 @@ function updateNestingView(plan) {
 }
 
 function buildNestingWarning(plan) {
-  if (!plan?.unplaced?.length) return '';
+  const marginWarning = plan?.machiningGapApplied ? `<div class="warn">Gap increased to ${dimension(plan.options.gap)} for open-edge connector machining.</div>` : '';
+  if (!plan?.unplaced?.length) return marginWarning;
   const message = plan.unplaced.map((item) => `${item.panel.name} (${item.reason})`).join(', ');
-  return `<div class="warn">Some parts could not be nested: ${escapeHtml(message)}</div>`;
+  return marginWarning + `<div class="warn">Some parts could not be nested: ${escapeHtml(message)}</div>`;
 }
 
 function buildNestingControls(config) {
@@ -710,6 +711,15 @@ function buildSheetSvg(sheet, options) {
       : `${formatLength(panel.cutWidth)} x ${formatLength(panel.cutHeight)}`;
     const notchCutouts = buildPlacementNotchSvg(placement, width);
     const details = buildPlacementDetailSvg(placement, width);
+    const grooves = (panel.grooves || []).map(g => {
+      const r = transformPlacementFeatureRect(placement,g);
+      return `<rect x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" fill="none" stroke="#3a6df0" stroke-width="${Math.max(1,width/1000)}" />`;
+    }).join('');
+    const holes = (panel.holes || []).map(h => {
+      const x = placement.x + (placement.rotated ? panel.cutHeight-h.y : h.x);
+      const y = placement.y + (placement.rotated ? h.x : h.y);
+      return `<circle cx="${x}" cy="${y}" r="${h.diameter/2}" fill="none" stroke="#2f7d78" stroke-width="${Math.max(1,width/1200)}" />`;
+    }).join('');
 
     return `
       <g>
@@ -717,6 +727,8 @@ function buildSheetSvg(sheet, options) {
         <rect x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" fill="#f5f7fb" stroke="#71819a" stroke-width="${Math.max(1.5, width / 500)}" />
         ${notchCutouts}
         ${details}
+        ${grooves}
+        ${holes}
         <g transform="translate(${cx} ${cy}) scale(1 -1) rotate(${textAngle})">
           <text x="0" y="${labelSize * 0.2}" text-anchor="middle" font-size="${labelSize}" font-weight="700" fill="#243247">${escapeHtml(`${index + 1}. ${panel.name}`)}</text>
           <text x="0" y="${labelSize * 1.2}" text-anchor="middle" font-size="${labelSize * 0.75}" fill="#5d6d85">${escapeHtml(dims)}</text>
@@ -799,16 +811,24 @@ function transformPlacementFeatureRect(placement, rect) {
 }
 
 function openSheetModal(sheet, options) {
+  openReviewModal(`Sheet ${sheet.index + 1}`,
+    `${sheet.materialLabel || 'Sheet Stock'} · ${stockDimension(sheet)} · ${formatLength(sheet.sheetWidth)} x ${dimension(sheet.sheetHeight)} · ${sheet.placements.length} parts`, buildSheetSvg(sheet, options));
+}
+
+function openReviewModal(heading, description, svg) {
   const modal = document.getElementById('sheet-zoom-modal');
   const title = document.getElementById('sheet-zoom-title');
   const meta = document.getElementById('sheet-zoom-meta');
   const body = document.getElementById('sheet-zoom-body');
   if (!modal || !title || !meta || !body) return;
 
-  title.textContent = `Sheet ${sheet.index + 1}`;
-  meta.textContent = `${sheet.materialLabel || 'Sheet Stock'} · ${stockDimension(sheet)} · ${formatLength(sheet.sheetWidth)} x ${dimension(sheet.sheetHeight)} · ${sheet.placements.length} parts`;
-  body.innerHTML = buildSheetSvg(sheet, options);
+  reviewReturnFocus = document.activeElement;
+  title.textContent = heading;
+  meta.textContent = description;
+  body.innerHTML = svg;
   modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+  document.getElementById('sheet-zoom-close')?.focus();
 }
 
 function closeSheetModal() {
@@ -816,7 +836,9 @@ function closeSheetModal() {
   const body = document.getElementById('sheet-zoom-body');
   if (!modal || !body) return;
   modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
   body.innerHTML = '';
+  reviewReturnFocus?.focus({ preventScroll: true });
 }
 
 function makePanelRowSpan(className, text) {
@@ -846,6 +868,10 @@ function buildPanelPreviewSvg(panel) {
     `<${panel.detailPathsClosed === false ? 'polyline' : 'polygon'} points="${path.map(point => `${point.x},${point.y}`).join(' ')}" fill="none" stroke="#655044" stroke-width="${strokeWidth}" stroke-linejoin="round" />`
   )).join('');
   const edgeLines = buildEdgeBandingLines(panel, width, height);
+  const edgeBores = (panel.edgeBores || []).map(b => {
+    const s = strokeWidth * 4;
+    return `<path d="M ${b.x - s} ${b.y} h ${s * 2} M ${b.x} ${b.y - s} v ${s * 2}" stroke="#b66a20" stroke-width="${strokeWidth}" />`;
+  }).join('');
 
   return `<svg class="panel-preview-svg" viewBox="${viewBox}" role="img" aria-label="${escapeHtml(panel.name)} preview">
     <g transform="translate(0 ${height}) scale(1 -1)">
@@ -854,6 +880,7 @@ function buildPanelPreviewSvg(panel) {
       ${grooves}
       ${details}
       ${holes}
+      ${edgeBores}
       ${edgeLines}
     </g>
   </svg>`;

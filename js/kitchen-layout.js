@@ -1,7 +1,7 @@
 import { formatLength, isImperial, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { downloadProjectFile } from './dxf-writer.js?v=20261020o';
+import { downloadProjectFile } from './dxf-writer.js?v=20261022e';
 import {
   autoArrangeProject,
   createProjectFromConfig,
@@ -10,7 +10,7 @@ import {
   normalizeProject,
   updatePlacement,
   updateRoom,
-} from './project-io.js?v=20260721a';
+} from './project-io.js?v=20261022e';
 
 const LAYOUT_SEED_KEY = 'cabinet-studio-layout-seed';
 const POSITION_SNAP = 10;

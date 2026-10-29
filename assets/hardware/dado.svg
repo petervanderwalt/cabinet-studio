@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 170" role="img" aria-label="Dado joint with mating carcass bottom extended into both sides">
+ <rect width="240" height="170" rx="12" fill="#fff"/>
+ <path d="M25 20h38v50H47v24h16v50H25zm190 0h-38v50h16v24h-16v50h38z" fill="#bd9266" stroke="#6d4c2c" stroke-width="3"/>
+ <path d="M48 72h144v20H48z" fill="#e4c59e" stroke="#6d4c2c" stroke-width="3"/>
+ <path d="M48 116h144m-144-5v10m144-10v10" stroke="#3758a0" stroke-width="2"/>
+ <text x="120" y="141" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#3758a0">opening + 2 × engagement</text>
+</svg>

@@ -1,5 +1,10 @@
 import { doorDetailPath, doorSlatPaths } from './door-detail.js?v=20261020o';
 import { splitStockAppearance } from './material-presets.js?v=20261020f';
+import { hardwareWarnings } from './hardware-library.js?v=20261022e';
+import { addDowelJoinery } from './joinery.js?v=20261022e';
+import { addCamJoinery } from './cam-joinery.js?v=20261022e';
+import { addDados } from './dado-joinery.js?v=20261022e';
+import { addCabineoJoinery } from './cabineo-joinery.js?v=20261022e';
 // cabinet-math.js — Pure function: Cabinet config → Panel[]
 // No UI, no three.js — unit-testable in isolation.
 
@@ -144,7 +149,10 @@ export function computePanels(cabinet) {
   const isGroovedBack = cabinet.backMount === 'grooved-in';
   const backFrontZ = isGroovedBack ? sideDepth - Tb : sideDepth;
   const interiorDepth = Math.max(0, backFrontZ - ffDepthOff);
-  const drawerDepth = Math.max(0, interiorDepth - 20);
+  const sideMountRunner = hw.runnerMode === 'side-mount';
+  const runnerFits = !sideMountRunner || (isFrameless && hw.runnerLength > 0 && hw.runnerLength + 3.2 <= interiorDepth &&
+    cabinet.drawers.sideClearance >= 12.7 && cabinet.drawers.sideClearance <= 13.5);
+  const drawerDepth = Math.max(0, sideMountRunner ? (runnerFits ? hw.runnerLength : 0) : interiorDepth - 20);
   const backBottomY = bottomY + T - grooveDepth;
   const backTopY = H - T + grooveDepth;
   const gHalf = g / 2;
@@ -176,22 +184,29 @@ export function computePanels(cabinet) {
     };
   }
 
-  function addHorizontalHandleHoles(panel, centerX, centerY) {
-    if (handleHoleSpacing <= 0) return;
-    const halfSpacing = handleHoleSpacing / 2;
-    panel.holes.push(
-      { x: centerX - halfSpacing, y: centerY, diameter: 5, purpose: 'handle' },
-      { x: centerX + halfSpacing, y: centerY, diameter: 5, purpose: 'handle' },
-    );
-  }
-
-  function addVerticalHandleHoles(panel, centerX, centerY) {
-    if (handleHoleSpacing <= 0) return;
-    const halfSpacing = handleHoleSpacing / 2;
-    panel.holes.push(
-      { x: centerX, y: centerY - halfSpacing, diameter: 5, purpose: 'handle' },
-      { x: centerX, y: centerY + halfSpacing, diameter: 5, purpose: 'handle' },
-    );
+  function addHandleHoles(panel, centerX, centerY, vertical) {
+    if (hw.handleType === 'none') return;
+    const knob = hw.handleType === 'knob';
+    if (!knob && !(handleHoleSpacing > 0)) return;
+    const diameter = hw.handleHoleDiameter ?? 5;
+    const half = knob ? 0 : handleHoleSpacing / 2;
+    const margin = diameter / 2 + 2;
+    const minX = margin + (vertical ? 0 : half);
+    const minY = margin + (vertical ? half : 0);
+    if (![diameter, half, centerX, centerY].every(Number.isFinite) || diameter <= 0 ||
+      panel.cutWidth < minX * 2 || panel.cutHeight < minY * 2) {
+      (panel.hardwareWarnings ||= []).push(`${panel.name}: handle pattern cannot fit; choose smaller centres or a knob. Handle bores omitted.`);
+      return;
+    }
+    const x = Math.max(minX, Math.min(panel.cutWidth - minX, centerX));
+    const y = Math.max(minY, Math.min(panel.cutHeight - minY, centerY));
+    panel.handlePlacement = { requestedX: centerX, requestedY: centerY, x, y };
+    if (x !== centerX || y !== centerY) {
+      (panel.hardwareWarnings ||= []).push(`${panel.name}: handle centre adjusted to x=${x}mm, y=${y}mm from the panel lower-left to fit ${knob ? 'the knob' : `${handleHoleSpacing}mm centres`}. Requested offsets are retained.`);
+    }
+    const bore = { diameter, purpose: 'handle', depth: panel.cutThickness, face: 'front' };
+    if (knob) panel.holes.push({ ...bore, x, y });
+    else for (const sign of [-1, 1]) panel.holes.push({ ...bore, x: x + (vertical ? 0 : sign * half), y: y + (vertical ? sign * half : 0) });
   }
 
   const caseColor = 0xB7C8E6;
@@ -255,7 +270,7 @@ export function computePanels(cabinet) {
     });
 
     // Drawer cabinets use runner reference holes instead of shelf pin rows.
-    if (drawerCount > 0 && cabinet.drawers.heights.length === drawerCount && sideCutDepth > 80) {
+    if (drawerCount > 0 && cabinet.drawers.heights.length === drawerCount && sideCutDepth > 80 && !sideMountRunner) {
       const drawerBoxTopInset = 24;
       const drawerBoxBottomInset = 12;
       const slideHoleInset = Math.min(64, Math.max(20, drawerDepth * 0.18));
@@ -270,20 +285,21 @@ export function computePanels(cabinet) {
         }
         drawerYOffset += dh + g;
       }
-    } else if (shelfCount > 0 && sideCutDepth > pinSetback * 2) {
+    } else if (shelfCount > 0 && pinSpacing > 0 && H / pinSpacing < 10000 && pinSetback > 0 && sideCutDepth > pinSetback * 2 &&
+      (hw.shelfPinDepth == null || (hw.shelfPinDepth > 0 && hw.shelfPinDepth <= T - 2))) {
       const frontPinX = pinSetback;
       const backPinX = sideCutDepth - pinSetback;
       const shelfPinBaseY = tkHeight > 0 ? tkHeight : T;
       const firstPinY = shelfPinBaseY + pinSpacing * 2;
       const lastPinY = H - T - pinSpacing;
       for (let y = firstPinY; y <= lastPinY + 0.001; y += pinSpacing) {
-        panel.holes.push({ x: frontPinX, y, diameter: 5, purpose: 'shelf-pin' });
-        panel.holes.push({ x: backPinX, y, diameter: 5, purpose: 'shelf-pin' });
+        panel.holes.push({ x: frontPinX, y, diameter: hw.shelfPinDiameter ?? 5, purpose: 'shelf-pin', ...(hw.shelfPinDepth != null ? { depth: hw.shelfPinDepth, face: 'inside' } : {}) });
+        panel.holes.push({ x: backPinX, y, diameter: hw.shelfPinDiameter ?? 5, purpose: 'shelf-pin', ...(hw.shelfPinDepth != null ? { depth: hw.shelfPinDepth, face: 'inside' } : {}) });
       }
     }
 
     // Hinge mounting plate holes (on the 32mm line near the front edge)
-    if (doorCount > 0 && drawerCount === 0) {
+    if (doorCount > 0 && drawerCount === 0 && !(hw.library?.hingePlate === 'plate-37-32' && !isFrameless)) {
       const hingeSide = cabinet.doors.hingeSide ?? 'both';
       const needsHingePlates = hingeSide === 'both' || hingeSide === side;
       if (needsHingePlates) {
@@ -297,8 +313,9 @@ export function computePanels(cabinet) {
         const hingePlateVerticalOffset = hingePlateHoleSpacing / 2;
         for (const hy of hingeVertPositions) {
           for (const x of hingePlateDepths) {
-            panel.holes.push({ x, y: doorBottomY + hy - hingePlateVerticalOffset, diameter: 5, purpose: 'hinge-mounting-plate' });
-            panel.holes.push({ x, y: doorBottomY + hy + hingePlateVerticalOffset, diameter: 5, purpose: 'hinge-mounting-plate' });
+            const bore = { diameter: hw.hingePlateDiameter ?? 5, purpose: 'hinge-mounting-plate', ...(hw.hingePlateDepth != null ? { depth: hw.hingePlateDepth, face: 'inside' } : {}) };
+            panel.holes.push({ ...bore, x, y: doorBottomY + hy - hingePlateVerticalOffset });
+            panel.holes.push({ ...bore, x, y: doorBottomY + hy + hingePlateVerticalOffset });
           }
         }
       }
@@ -717,12 +734,13 @@ export function computePanels(cabinet) {
           x: hx, y: hy,
           diameter: hingeBoreDia,
           purpose: 'hinge-cup',
+          ...(hw.hingeBoreDepth != null ? { depth: hw.hingeBoreDepth, face: 'back' } : {}),
         });
       }
 
       const handleCenterX = hingeSide === 'left' ? dw - handleEdgeOffset : handleEdgeOffset;
       const handleCenterY = !isWallCabinet(cabinet) && dh >= 1600 ? dh / 2 : doorHandleHeight;
-      addVerticalHandleHoles(panel, handleCenterX, handleCenterY);
+      addHandleHoles(panel, handleCenterX, handleCenterY, true);
 
       panels.push(panel);
       panel.hingeSide = hingeSide;
@@ -763,7 +781,7 @@ export function computePanels(cabinet) {
         const slideHoleInset = Math.min(64, Math.max(20, drawerDepth * 0.18));
         const slideHoleXs = [slideHoleInset, drawerDepth / 2, drawerDepth - slideHoleInset];
         const slideCenterY = boxH / 2;
-        const makeSlideReferenceHoles = () => slideHoleXs.map(x => ({
+        const makeSlideReferenceHoles = () => sideMountRunner ? [] : slideHoleXs.map(x => ({
           x,
           y: slideCenterY,
           diameter: 3,
@@ -795,12 +813,12 @@ export function computePanels(cabinet) {
           drawerFrontPanel.detailPaths = doorSlatPaths(drawerW, dh, cabinet.drawers);
           drawerFrontPanel.detailPathsClosed = false;
         }
-        addHorizontalHandleHoles(drawerFrontPanel, drawerW / 2, dh - drawerHandleTopOffset);
+        addHandleHoles(drawerFrontPanel, drawerW / 2, dh - drawerHandleTopOffset, false);
         drawerFrontPanel.drawDepth = drawerDepth;
 
         // Drawer left side
         const sideW = interW - 2 * drawerClr - 2 * drawerSideThk;
-        if (sideW > 0) {
+        if (sideW > 0 && runnerFits) {
           panels.push(makePanel({
             id: `drawer-${i + 1}-side-left`,
             name: `Drawer ${i + 1} Left Side`,
@@ -890,6 +908,29 @@ export function computePanels(cabinet) {
     }
   }
 
+  const drillingWarnings = [];
+  for (const panel of panels) {
+    const invalidPurposes = new Set();
+    panel.holes = panel.holes.filter(h => {
+      if (h.purpose === 'handle' && hw.handleType != null) { h.depth = panel.cutThickness; h.face = 'front'; }
+      const newDimensions = (h.purpose === 'handle' && hw.handleHoleDiameter != null)
+        || (h.purpose === 'shelf-pin' && hw.shelfPinDiameter != null)
+        || (h.purpose === 'hinge-mounting-plate' && hw.hingePlateDiameter != null);
+      if (h.depth == null && !newDimensions) return true; // Preserve unspecified legacy drilling.
+      const r = h.diameter / 2;
+      const valid = Number.isFinite(r) && r > 0 && (h.depth == null || (Number.isFinite(h.depth) && h.depth > 0)) &&
+        h.x >= r && h.x <= panel.cutWidth - r && h.y >= r && h.y <= panel.cutHeight - r &&
+        (h.depth == null || h.purpose === 'handle' || h.depth <= panel.cutThickness - 2);
+      if (!valid) {
+        invalidPurposes.add(h.purpose);
+        drillingWarnings.push(`${panel.name}: invalid ${h.purpose} pattern omitted; check depth, diameter and edge clearance.`);
+      }
+      return valid;
+    });
+    panel.holes = panel.holes.filter(h => !invalidPurposes.has(h.purpose));
+  }
+  const joineryWarnings = [...addDowelJoinery(panels, cabinet), ...addCamJoinery(panels, cabinet), ...addDados(panels, cabinet), ...addCabineoJoinery(panels, cabinet)];
+  if (panels.length) panels[0].hardwareWarnings = [...new Set([...(panels[0].hardwareWarnings || []), ...hardwareWarnings(cabinet), ...drillingWarnings, ...joineryWarnings])];
   return panels;
 }
 
@@ -943,5 +984,6 @@ export function validateCabinet(cabinet) {
     }
   }
 
+  warnings.push(...computePanels(cabinet).flatMap(p => p.hardwareWarnings || []));
   return warnings;
 }

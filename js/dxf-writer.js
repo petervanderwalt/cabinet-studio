@@ -1,5 +1,6 @@
 import { dimension, formatLength, isImperial, toDisplay, stockDimension, unitLabel } from './units.js?v=20261020h';
-import { inferFrontMode } from './cabinet-math.js?v=20261020o';
+import { inferFrontMode } from './cabinet-math.js?v=20261022e';
+import { HARDWARE_CATEGORIES, hardwareBom, selectedHardware } from './hardware-library.js?v=20261022e';
 
 const JSZip = window.JSZip;
 
@@ -15,7 +16,7 @@ function writeLayer(lines, name, color, ltype = 'CONTINUOUS') {
   pair(lines, 6, ltype);
 }
 
-function createDxfDocument(entitiesWriter) {
+function createDxfDocument(entitiesWriter, drillLayers = []) {
   const lines = [];
 
   pair(lines, 0, 'SECTION');
@@ -30,7 +31,7 @@ function createDxfDocument(entitiesWriter) {
   pair(lines, 2, 'TABLES');
   pair(lines, 0, 'TABLE');
   pair(lines, 2, 'LAYER');
-  pair(lines, 70, 9);
+  pair(lines, 70, 9 + drillLayers.length);
   writeLayer(lines, '0', 7);
   writeLayer(lines, 'CUTLINE', 1);
   writeLayer(lines, 'DRILL', 3);
@@ -40,6 +41,7 @@ function createDxfDocument(entitiesWriter) {
   writeLayer(lines, 'SHEET', 8);
   writeLayer(lines, 'GAP', 2, 'DASHED');
   writeLayer(lines, 'OFFCUT', 9, 'DASHED');
+  for (const layer of drillLayers) writeLayer(lines, layer, 3);
   pair(lines, 0, 'ENDTAB');
   pair(lines, 0, 'ENDSEC');
 
@@ -200,17 +202,20 @@ export function panelToDxf(panel) {
     writer.polyline(getPanelOutline(panel), 'CUTLINE', true);
 
     for (const hole of panel.holes || []) {
-      writer.circle(hole.x, hole.y, Number(hole.diameter || 0) / 2, 'DRILL');
+      writer.circle(hole.x, hole.y, Number(hole.diameter || 0) / 2, drillLayer(hole));
     }
 
     for (const groove of panel.grooves || []) {
-      writer.rect(groove.x, groove.y, groove.width, groove.height, 'GROOVE');
+      writer.rect(groove.x, groove.y, groove.width, groove.height, grooveLayer(groove));
     }
 
     for (const path of panel.detailPaths || []) writer.polyline(path, 'DOOR_DETAIL', panel.detailPathsClosed !== false);
 
     writer.text(5, Math.max(5, Number(panel.cutHeight || 0) - 5), 3, panelLabel(panel), 'LABEL', 0);
-  });
+    for (const [index, b] of (panel.edgeBores || []).entries()) {
+      writer.text(5, -8 - index * 5, 3, `EDGE SETUP ${b.edge}: x ${dimension(b.x)}, y ${dimension(b.y)}, offset ${dimension(b.offset)}, dia ${dimension(b.diameter)}, depth ${dimension(b.depth)}`, 'LABEL');
+    }
+  }, depthLayers([panel]));
 }
 
 export function sheetToDxf(sheet, options = {}) {
@@ -240,12 +245,12 @@ export function sheetToDxf(sheet, options = {}) {
 
       for (const hole of panel.holes || []) {
         const transformed = transformHole(hole, placement);
-        writer.circle(transformed.x, transformed.y, Number(hole.diameter || 0) / 2, 'DRILL');
+        writer.circle(transformed.x, transformed.y, Number(hole.diameter || 0) / 2, drillLayer(hole));
       }
 
       for (const groove of panel.grooves || []) {
         const transformedCorners = transformRect(groove, placement);
-        writer.polyline(transformedCorners, 'GROOVE', true);
+        writer.polyline(transformedCorners, grooveLayer(groove), true);
       }
 
       for (const path of panel.detailPaths || []) {
@@ -260,7 +265,43 @@ export function sheetToDxf(sheet, options = {}) {
 
     writer.text(20, sheet.sheetHeight + 20, 8, `Sheet ${sheet.index + 1} - ${sheet.materialLabel || 'Sheet Stock'} - ${stockDimension(sheet)}`, 'LABEL', 0);
     writer.text(Math.max(20, sheet.sheetWidth - 160), sheet.sheetHeight + 20, 8, `${formatLength(sheet.sheetWidth)} x ${formatLength(sheet.sheetHeight)} ${unitLabel()}`, 'LABEL', 0);
-  });
+  }, depthLayers(sheet.placements.map(p => p.panel)));
+}
+
+function drillLayer(hole) {
+  return hole.depth > 0 && ['inside', 'top', 'underside', 'back', 'front'].includes(hole.face)
+    ? `DRILL_${hole.face.toUpperCase()}_D${Number(hole.depth.toFixed(3))}MM` : 'DRILL';
+}
+
+function depthLayers(panels) {
+  return [...new Set(panels.flatMap(p => [...(p.holes || []).map(drillLayer), ...(p.grooves || []).map(grooveLayer)]))].filter(l => l !== 'DRILL' && l !== 'GROOVE');
+}
+
+function grooveLayer(g) { return g.purpose === 'dado' ? `DADO_INSIDE_D${g.depth}MM` : 'GROOVE'; }
+
+// Kept in panel-local coordinates; sheet rotation never changes secondary setups.
+export function machiningSchedule(panels) {
+  return {
+    units: 'mm', coordinateSystem: 'Panel DXF outline: x/y from lower-left, before nesting rotation. Edge offset is from the lower thickness face.',
+    instruction: 'Edge bores require a separate setup/jig. Depth layers in DXF are millimetres even in inch drawings. Verify mating joint IDs and drill a test joint.',
+    panels: panels.map(p => ({ id: p.id, name: p.name, width: p.cutWidth, height: p.cutHeight, thickness: p.cutThickness,
+      warnings: p.hardwareWarnings || [], handlePlacement: p.handlePlacement, joinery:p.joinery, machiningMargin:p.machiningMargin,
+      faceBores: p.holes || [], edgeBores: p.edgeBores || [], grooves:p.grooves || [] })),
+  };
+}
+
+function hardwareManifest(config, panels) {
+  const lines = ['HARDWARE'];
+  for (const preset of selectedHardware(config)) {
+    lines.push(`  ${HARDWARE_CATEGORIES[preset.category] || preset.category}: ${preset.label} [${preset.status}]`);
+    if (preset.note) lines.push(`    ${preset.note}`);
+    if (preset.source) lines.push(`    Source: ${preset.source}`);
+  }
+  for (const row of hardwareBom(config, panels)) lines.push(`  ${row.quantity} ${row.unit}: ${row.item}${row.note ? ` — ${row.note}` : ''}`);
+  for (const p of panels) for (const warning of p.hardwareWarnings || []) lines.push(`  WARNING: ${warning}`);
+  lines.push('  Face/depth DXF layers: DRILL_<FACE>_D<depth>MM. Edge bores are in machining-schedule.json, never DRILL circles.');
+  for (const p of panels) for (const b of p.edgeBores || []) lines.push(`  ${p.name}: ${b.joint}, ${b.edge}, x=${dimension(b.x)}, y=${dimension(b.y)}, thickness offset=${dimension(b.offset)}, diameter=${dimension(b.diameter)}, depth=${dimension(b.depth)}, mate=${b.mate}`);
+  return lines;
 }
 
 function generateCabinetManifest(config, panels) {
@@ -332,11 +373,13 @@ function generateCabinetManifest(config, panels) {
     lines.push(`    ${panel.name.padEnd(22)}${dims}${edgeParts.length > 0 ? edgeParts.join('/') : '-'}`);
     lines.push(`      Stock: ${panel.materialLabel || '-'} · ${stockDimension(panel)}`);
     for (const groove of panel.grooves || []) {
-      if (groove.depth > 0) lines.push(`      Back rebate: ${dimension(groove.depth)} deep, inside face; footprint on GROOVE layer`);
+      if (groove.depth > 0) lines.push(`      ${groove.purpose === 'dado' ? 'Dado' : 'Back rebate'}: ${dimension(groove.depth)} deep, inside face; footprint on ${grooveLayer(groove)} layer`);
     }
+    if (panel.joinery?.type === 'dado') lines.push(`      Dado mating panel: original width ${dimension(panel.joinery.originalWidth)} + 2 x ${dimension(panel.joinery.extensionPerSide)} engagement = ${dimension(panel.cutWidth)}. Fixed panel.`);
   }
   lines.push('');
   lines.push('--- End of manifest ---');
+  lines.push('', ...hardwareManifest(config, panels));
   return lines.join('\n');
 }
 
@@ -356,7 +399,9 @@ function generateProjectManifest(project, panels, nestingPlan) {
   lines.push('CABINETS');
   for (const cabinet of project?.cabinets || []) {
     lines.push(`  ${cabinet.name}  x${cabinet.qty}`);
-    lines.push(`    ${cabinet.config.width} x ${cabinet.config.height} x ${dimension(cabinet.config.depth)}`);
+    lines.push(`    ${formatLength(cabinet.config.width)} x ${formatLength(cabinet.config.height)} x ${dimension(cabinet.config.depth)}`);
+    const parts = panels.filter(p => p.sourceCabinetId === cabinet.id && p.sourceCopyIndex === 1);
+    lines.push(`    Hardware per cabinet (multiply by ${cabinet.qty}):`, ...hardwareManifest(cabinet.config, parts));
   }
   lines.push('');
   lines.push('MATERIAL GROUPS');
@@ -409,10 +454,12 @@ export async function downloadManufacturingZip({ panels, config, project, nestin
     }
   }
 
-  zip.file('manifest.txt', generateCabinetManifest(config, panels));
+  const activeParts = panels.filter(p => p.sourceCabinetId === config.id && p.sourceCopyIndex === 1);
+  zip.file('manifest.txt', generateCabinetManifest(config, activeParts.length ? activeParts : panels));
   zip.file('project-manifest.txt', generateProjectManifest(project, panels, nestingPlan));
   zip.file('project.json', JSON.stringify(project, null, 2));
   zip.file('cabinet.json', JSON.stringify(config, null, 2));
+  zip.file('machining-schedule.json', JSON.stringify(machiningSchedule(panels), null, 2));
 
   const filename = `${safeName(project?.name || 'kitchen-project')}-manufacturing.zip`;
   const blob = await zip.generateAsync({ type: 'blob' });

@@ -1,8 +1,9 @@
 import { additionalDrawerHeight, distributeDrawerHeights } from './drawer-heights.js';
 import { dimension, formatLength, getUnits, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 // form-ui.js - Build and manage the cabinet config form
-import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261020o';
+import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261022e';
 import { applyGlobalMaterialSelections, defaultStockMaterials } from './material-presets.js?v=20261020f';
+import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261022e';
 
 const SECTION_ICONS = {
   'Cabinet Type': 'fa-cube',
@@ -50,6 +51,13 @@ export class CabinetForm {
     form.className = 'cabinet-form';
     form.addEventListener('submit', e => e.preventDefault());
     const handleInput = event => {
+      const category = event.target.dataset.hardwareCategory;
+      if (category) {
+        const select = form.querySelector(`[data-key="hardware.library.${category}"]`);
+        if (select) select.value = 'custom';
+        const note = form.querySelector(`[data-hardware-note="${category}"]`);
+        if (note) note.textContent = 'Custom dimensions';
+      }
       if (!event.target.matches('.drawer-height-input')) this._emitChange();
     };
     form.addEventListener('input', handleInput);
@@ -723,10 +731,117 @@ export class CabinetForm {
   }
 
   _hardwareFields() {
-    if (this._frontMode() === 'drawers') {
-      return this._drawerHardwareFields();
+    const fields = this._frontMode() === 'drawers' ? this._drawerHardwareFields() : this._doorHardwareFields();
+    const categoryForKey = key => key.startsWith('hardware.hingePlate') ? 'hingePlate'
+      : key.startsWith('hardware.hingeBore') ? 'hingeCup' : key.startsWith('hardware.shelfPin') ? 'shelfPins'
+      : ['hardware.handleHoleSpacing', 'hardware.handleType', 'hardware.handleHoleDiameter'].includes(key) ? 'handles'
+      : key === 'drawers.sideClearance' ? 'runners' : null;
+    for (const field of fields) for (const input of field.querySelectorAll('[data-key]')) {
+      const category = categoryForKey(input.dataset.key);
+      if (category) input.dataset.hardwareCategory = category;
     }
-    return this._doorHardwareFields();
+    return [...this._hardwareLibraryFields(), ...fields, ...this._joineryFields(), this._connectorReferences()];
+  }
+
+  _connectorReferences() {
+    const details = document.createElement('details');
+    details.className = 'connector-references';
+    const summary = document.createElement('summary');
+    summary.textContent = 'Connector pictures & datasheets'; details.append(summary);
+    for (const reference of CONNECTOR_REFERENCES) {
+      const link = document.createElement('a');
+      link.href = reference.source; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      const image = document.createElement('img');
+      image.src = reference.image; image.alt = reference.name; image.loading = 'lazy';
+      image.className = 'hardware-reference-image';
+      const name = document.createElement('strong'); name.textContent = reference.name;
+      link.append(image, name);
+      const text = this._makeBlurb(reference.note);
+      details.append(link, text);
+    }
+    return details;
+  }
+
+  _hardwareLibraryFields() {
+    const fields = [];
+    const categories = this._frontMode() === 'drawers'
+      ? ['handles', 'runners', 'joinery'] : ['hingeCup', 'hingePlate', 'shelfPins', 'handles', 'joinery'];
+    const selected = selectedHardware(this.config);
+    for (const category of categories) {
+      const presets = HARDWARE_LIBRARY.filter(p => p.category === category);
+      const select = this._createSelect([
+        { value: 'custom', label: 'Custom / existing dimensions' },
+        ...presets.map(p => ({ value: p.id, label: p.label + (p.status === 'fit' ? ' (fit only)' : '') })),
+      ], { 'data-key': `hardware.library.${category}`, 'aria-label': `${HARDWARE_CATEGORIES[category]} library` });
+      select.value = selected.find(p => p.category === category)?.id || 'custom';
+      const preset = hardwarePreset(select.value);
+      const note = this._makeBlurb(preset?.note || '');
+      note.dataset.hardwareNote = category;
+      if (preset?.source) {
+        const link = document.createElement('a');
+        link.href = preset.source; link.target = '_blank'; link.rel = 'noopener noreferrer';
+        link.textContent = ' Drawing / reference';
+        note.append(link);
+      }
+      if (preset?.image) {
+        const imageLink = document.createElement('a');
+        imageLink.href = preset.imageSource || preset.source || preset.image; imageLink.target = '_blank'; imageLink.rel = 'noopener noreferrer';
+        const img = document.createElement('img');
+        img.src = preset.image; img.alt = `${preset.label} — supplier reference`; img.className = 'hardware-reference-image';
+        imageLink.append(img); note.append(imageLink);
+        if (preset.imageNote) note.append(document.createTextNode(preset.imageNote));
+      }
+      if (preset?.drawing) {
+        const drawing = document.createElement('a');
+        drawing.href = preset.drawing; drawing.target = '_blank'; drawing.rel = 'noopener noreferrer';
+        drawing.textContent = ' Machining diagram'; note.append(drawing);
+      }
+      select.addEventListener('change', event => {
+        event.stopPropagation();
+        this.config = this.getConfig();
+        if (select.value !== 'custom') this.config = applyHardwarePreset(this.config, select.value);
+        const scroll = this.container.scrollTop;
+        this._render();
+        this.container.scrollTop = scroll;
+        this._emitChange();
+      });
+      const field = this._makeField(HARDWARE_CATEGORIES[category], select);
+      field.classList.add('hardware-library-field');
+      fields.push(field, note);
+    }
+    return fields;
+  }
+
+  _hardwareDimension(label, key, fallback, category, min = 0) {
+    const stored = key.split('.').reduce((obj, k) => obj?.[k], this.config);
+    const value = stored ?? fallback;
+    const input = this._createInput('number', { 'data-key': key, value, min, step: 0.1, 'aria-label': label });
+    if (stored == null) {
+      input.dataset.unset = 'true';
+      input.addEventListener('input', () => { delete input.dataset.unset; });
+    }
+    if (category) input.dataset.hardwareCategory = category;
+    return this._makeField(label, input, { unit: 'mm' });
+  }
+
+  _joineryFields() {
+    if (this.config.hardware.joineryType === 'dado') return [
+      this._hardwareDimension('Dado engagement depth', 'hardware.dadoDepth', 6, 'joinery'),
+      this._hardwareDimension('Dado fit clearance', 'hardware.dadoClearance', 0.2, 'joinery'),
+    ];
+    if (['rastex-18','cabineo-8','cabineo-12'].includes(this.config.hardware.joineryType)) return [
+      this._hardwareDimension('Connector end offset', 'hardware.connectorEndOffset', 37, 'joinery'),
+      this._hardwareDimension('Connector maximum spacing', 'hardware.connectorMaxSpacing', 160, 'joinery'),
+    ];
+    if (this.config.hardware.joineryType !== 'dowel') return [];
+    return [
+      this._makeBlurb('Dowels: face bores in DXF; edge bores in the separate machining schedule.'),
+      ...[
+        ['Dowel diameter', 'dowelDiameter', 8], ['Dowel length', 'dowelLength', 30],
+        ['Dowel face depth', 'dowelFaceDepth', 12], ['Dowel edge depth', 'dowelEdgeDepth', 20],
+        ['Dowel end offset', 'dowelEndOffset', 37], ['Dowel maximum spacing', 'dowelMaxSpacing', 160],
+      ].map(([label, key, value]) => this._hardwareDimension(label, `hardware.${key}`, value, 'joinery')),
+    ];
   }
 
   _doorHardwareFields() {
@@ -764,6 +879,7 @@ export class CabinetForm {
     coreContent.append(
       this._makeField('Hinge bore diameter', hbd, { unit: 'mm' }),
       this._makeField('Hinge bore inset (from door edge)', hbi, { unit: 'mm' }),
+      this._hardwareDimension('Hinge cup depth', 'hardware.hingeBoreDepth', 13, 'hingeCup'),
     );
     const secondRow = this._createInput('checkbox', { 'data-key': 'hardware.hingePlateSecondRow' });
     secondRow.checked = this.config.hardware.hingePlateSecondRow !== false;
@@ -808,13 +924,18 @@ export class CabinetForm {
       this._makeField('Hinge plate front hole offset', hpFront, { unit: 'mm' }),
       this._makeField('Hinge plate rear hole offset', hpRear, { unit: 'mm' }),
       this._makeField('Hinge plate hole spacing', hpSpacing, { unit: 'mm' }),
+      this._hardwareDimension('Plate bore diameter', 'hardware.hingePlateDiameter', 5, 'hingePlate'),
+      this._hardwareDimension('Plate bore depth', 'hardware.hingePlateDepth', 12, 'hingePlate'),
     );
     shelfContent.append(
       this._makeInfoCard('Shelf pins', 'Adjust these only if you want to change the shelf pin pattern.'),
       this._makeField('Shelf pin spacing', sps, { unit: 'mm' }),
       this._makeField('Shelf pin setback', spsb, { unit: 'mm' }),
+      this._hardwareDimension('Shelf pin diameter', 'hardware.shelfPinDiameter', 5, 'shelfPins'),
+      this._hardwareDimension('Shelf pin bore depth', 'hardware.shelfPinDepth', 10, 'shelfPins'),
     );
     handleContent.append(
+      ...this._handleTypeFields(),
       this._makeField('Handle hole spacing', handleSpacing, { unit: 'mm' }),
       this._makeField('Door handle edge offset', handleEdge, { unit: 'mm' }),
       this._makeField('Door handle centre height from bottom', doorHandleHeight, { unit: 'mm' }),
@@ -863,12 +984,33 @@ export class CabinetForm {
     const sideClearance = this._createInput('number', { 'data-key': 'drawers.sideClearance', value: this.config.drawers.sideClearance ?? 10, min: 0, step: 1 });
 
     handleContent.append(
+      ...this._handleTypeFields(),
       this._makeField('Handle hole spacing', handleSpacing, { unit: 'mm' }),
       this._makeField('Drawer handle centre offset down from top', drawerHandleTop, { unit: 'mm' }),
     );
     runnerContent.append(
       this._makeField('Drawer runner clearance per side', sideClearance, { unit: 'mm' }),
     );
+    if (this.config.hardware.runnerMode === 'side-mount') {
+      const preset = hardwarePreset('runner-3832e');
+      const length = this._createSelect(preset.lengths.map(mm => ({ value: mm, label: dimension(mm) })), { 'data-key': 'hardware.runnerLength', 'aria-label': 'Runner length' });
+      length.dataset.number = 'true';
+      length.value = String(this.config.hardware.runnerLength);
+      runnerContent.append(this._makeField('Runner length', length), this._makeBlurb('Fit only. Mounting holes use the manufacturer drawing or jig.'));
+    }
+    const runnerMode = this._createSelect([
+      { value: 'reference', label: 'Custom clearance / reference holes' },
+      { value: 'side-mount', label: 'Side mount / selected length (no mounting holes)' },
+    ], { 'data-key': 'hardware.runnerMode', 'aria-label': 'Runner output' });
+    runnerMode.value = this.config.hardware.runnerMode || 'reference';
+    runnerMode.addEventListener('change', e => {
+      e.stopPropagation();
+      this.config = this.getConfig();
+      this.config.hardware.library = { ...this.config.hardware.library, runners: 'custom' };
+      this.config.hardware.runnerLength ||= 500;
+      this._render(); this._emitChange();
+    });
+    runnerContent.prepend(this._makeField('Runner output', runnerMode));
 
     const switchTab = (active) => {
       handleTab.classList.toggle('active', active === 'handle');
@@ -893,6 +1035,14 @@ export class CabinetForm {
     return button;
   }
 
+  _handleTypeFields() {
+    const type = this._createSelect([
+      { value: 'pull', label: 'Pull (two holes)' }, { value: 'knob', label: 'Knob (one hole)' }, { value: 'none', label: 'None' },
+    ], { 'data-key': 'hardware.handleType', 'aria-label': 'Handle drilling' });
+    type.value = this.config.hardware.handleType || 'pull';
+    return [this._makeField('Handle drilling', type), this._hardwareDimension('Handle hole diameter', 'hardware.handleHoleDiameter', 5, 'handles')];
+  }
+
   _makeModeButton(iconClass, title, active = false) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -915,6 +1065,7 @@ export class CabinetForm {
 
     const inputs = form.querySelectorAll('[data-key]');
     for (const input of inputs) {
+      if (input.dataset.unset) continue;
       const key = input.getAttribute('data-key');
       const parts = key.split('.');
       let val;
@@ -923,7 +1074,7 @@ export class CabinetForm {
       } else if (input.dataset.length) {
         val = readLength(input);
         if (!Number.isFinite(val)) continue;
-      } else if (input.type === 'number') {
+      } else if (input.type === 'number' || input.dataset.number) {
         val = parseFloat(input.value);
         if (Number.isNaN(val)) val = 0;
       } else {

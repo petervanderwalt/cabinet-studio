@@ -1,5 +1,5 @@
 import { defaultStockMaterials } from './material-presets.js?v=20261020f';
-import { defaultCabinet } from './cabinet-math.js?v=20261020o';
+import { defaultCabinet, computePanels } from './cabinet-math.js?v=20261022e';
 
 const PROJECT_VERSION = 2;
 const LAYOUT_SPACING = 40;
@@ -382,4 +382,33 @@ export function getPlacementWorldPosition(project, instance) {
     depth: footprint.depth,
     height: footprint.height,
   };
+}
+
+export function buildProjectPanels(project) {
+  const normalized = normalizeProject(project);
+  const multiCabinet = normalized.cabinets.length > 1;
+  const projectPanels = [];
+
+  normalized.cabinets.forEach((cabinet) => {
+    const basePanels = computePanels(cabinet.config);
+    const copies = Math.max(1, Number(cabinet.qty) || 1);
+    for (let copyIndex = 0; copyIndex < copies; copyIndex += 1) {
+      for (const panel of basePanels) {
+        const instanceSuffix = copies > 1 ? ` #${copyIndex + 1}` : '';
+        const labelPrefix = multiCabinet ? `${cabinet.name} · ` : '';
+        projectPanels.push({
+          ...structuredClone(panel),
+          id: `${cabinet.id}__${copyIndex + 1}__${panel.id}`,
+          name: `${labelPrefix}${panel.name}${instanceSuffix}`,
+          sourceCabinetId: cabinet.id,
+          sourceCabinetName: cabinet.name,
+          sourceCopyIndex: copyIndex + 1,
+          holes: (panel.holes || []).map(h => ({ ...h, ...(h.joint ? { joint: `${cabinet.id}__${copyIndex + 1}__${h.joint}`, mate: `${cabinet.id}__${copyIndex + 1}__${h.mate}` } : {}) })),
+          edgeBores: (panel.edgeBores || []).map(h => ({ ...h, joint: `${cabinet.id}__${copyIndex + 1}__${h.joint}`, mate: `${cabinet.id}__${copyIndex + 1}__${h.mate}` })),
+        });
+      }
+    }
+  });
+
+  return projectPanels;
 }
