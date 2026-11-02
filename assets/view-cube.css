@@ -1,0 +1,47 @@
+.view-cube-control {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  width: 112px;
+  display: grid;
+  gap: 4px;
+}
+.view-cube-stage {
+  height: 112px;
+  display: grid;
+  place-items: center;
+  perspective: 500px;
+}
+.view-cube {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  transform-style: preserve-3d;
+}
+.view-cube-control button, .view-cube-control select {
+  border: 1px solid #8295ba;
+  background: #f5f8ff;
+  color: #17233a;
+  font: 600 12px var(--font-body);
+  cursor: pointer;
+}
+.view-cube-control button:hover { background: #dfe8ff; }
+.view-cube-face {
+  position: absolute;
+  inset: 0;
+  width: 64px;
+  height: 64px;
+  backface-visibility: hidden;
+}
+.view-cube-front { transform: rotateY(180deg) translateZ(32px); }
+.view-cube-back { transform: translateZ(32px); }
+.view-cube-left { transform: rotateY(90deg) translateZ(32px); }
+.view-cube-right { transform: rotateY(-90deg) translateZ(32px); }
+.view-cube-top { transform: rotateX(90deg) translateZ(32px) rotateZ(180deg); }
+.view-cube-bottom { transform: rotateX(-90deg) translateZ(32px); }
+.view-cube-control select, .view-cube-home {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 8px;
+}

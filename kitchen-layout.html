@@ -60,10 +60,12 @@
       grid-template-rows: auto minmax(0, 1fr);
       gap: 10px;
       height: 100vh;
+      height: 100dvh;
       padding: 10px;
     }
 
     .topbar {
+      flex-wrap: wrap;
       grid-column: 1 / -1;
       display: flex;
       align-items: center;
@@ -533,8 +535,14 @@
     }
 
     @media (max-width: 1280px) {
+      body { overflow: auto; }
+
       #app {
         grid-template-columns: 300px minmax(0, 1fr);
+        grid-template-rows: auto minmax(420px, 65dvh) auto;
+        height: auto;
+        min-height: 100vh;
+        min-height: 100dvh;
       }
 
       #layout-list {
@@ -559,6 +567,10 @@
       #layout-list {
         min-height: auto;
       }
+    }
+    @media (pointer: coarse) {
+      #app input, #app select, #app textarea { font-size: 16px; }
+      #app button, #app select { min-height: 44px; }
     }
   </style>
 </head>

@@ -1,6 +1,7 @@
+import { initTabletViews } from './tablet-ui.js?v=20261102a';
 import { dimension, formatLength, getUnits, lengthInput, readLength, stockDimension, unitLabel } from './units.js?v=20261020h';
 // main.js - Application entry point
-import { CabinetViewport } from './three-viewport.js?v=20261029a';
+import { CabinetViewport } from './three-viewport.js?v=20261102b';
 import { CabinetForm } from './form-ui.js?v=20261022e';
 import { computePanels } from './cabinet-math.js?v=20261022e';
 import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261022e';
@@ -32,6 +33,7 @@ let renamingCabinetId = null;
 const LAYOUT_SEED_KEY = 'cabinet-studio-layout-seed';
 
 function init() {
+  initTabletViews();
   const formContainer = document.getElementById('form-container');
   const viewportContainer = document.getElementById('viewport-container');
 
@@ -283,7 +285,10 @@ function renderProjectTabs() {
   const activeTab = tabList.querySelector('.project-tab.active');
   if (activeTab instanceof HTMLElement) {
     requestAnimationFrame(() => {
-      activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      tabList.scrollTo({
+        left: activeTab.offsetLeft - (tabList.clientWidth - activeTab.offsetWidth) / 2,
+        behavior: 'smooth',
+      });
     });
   }
 }
@@ -401,6 +406,7 @@ function selectPanelPreview(panel) {
     if (selected) selectedRow = row;
   }
   if (!selectedRow) return;
+  document.getElementById('tablet-parts-button')?.click();
   document.getElementById('results-parts-tab').click();
   selectedRow.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
 }

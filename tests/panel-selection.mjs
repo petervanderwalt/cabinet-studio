@@ -25,6 +25,7 @@ assert.equal(selected, null, 'Orbit dragging must not select a panel');
 const main = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const select = main.match(/function selectPanelPreview\(panel\) \{([\s\S]*?)\n\}\n/)[1];
 let activated = false, scrolled = false;
+const openedViews = [];
 const rows = ['top', 'side-left'].map(id => ({
   dataset: { panelId: id },
   classList: { toggle: (_, selected) => { rows.find(row => row.dataset.panelId === id).selected = selected; } },
@@ -34,11 +35,12 @@ vm.runInNewContext(`(function(panel) {${select}})(panel)`, {
   panel,
   document: {
     querySelectorAll: () => rows,
-    getElementById: () => ({ click: () => { activated = true; } }),
+    getElementById: id => ({ click: () => { activated = true; openedViews.push(id); } }),
   },
 });
 assert.equal(rows[0].selected, false);
 assert.equal(rows[1].selected, true);
 assert.equal(activated, true);
+assert.deepEqual(openedViews, ['tablet-parts-button', 'results-parts-tab']);
 assert.equal(scrolled, 'side-left');
 console.log('PASS: viewer selection, drag guard, matching row highlight, parts tab and scrolling');

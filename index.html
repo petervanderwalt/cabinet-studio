@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cabinet Studio</title>
+  <link rel="stylesheet" href="assets/view-cube.css?v=20261102b">
   <link rel="icon" type="image/png" sizes="64x64" href="assets/favicon.png">
   <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,6 +66,7 @@
       grid-template-rows: auto minmax(0, 1fr);
       gap: 10px;
       height: 100vh;
+      height: 100dvh;
       padding: 10px;
     }
 
@@ -297,14 +299,15 @@
     }
 
     .project-tabs {
+      position: relative;
       display: flex;
       align-items: flex-end;
       gap: 0;
       overflow-x: auto;
       overflow-y: hidden;
       padding: 0;
-      width: max-content;
-      min-width: 100%;
+      width: 100%;
+      min-width: 0;
       scrollbar-width: none;
       -ms-overflow-style: none;
     }
@@ -1440,8 +1443,14 @@
     .tab-container { display: contents; }
 
     @media (max-width: 1180px) {
+      body { overflow: auto; }
+
       #app {
         grid-template-columns: 290px minmax(0, 1fr);
+        grid-template-rows: auto minmax(420px, 65dvh) auto;
+        height: auto;
+        min-height: 100vh;
+        min-height: 100dvh;
         gap: 10px;
         padding: 10px;
       }
@@ -1464,6 +1473,7 @@
 
       #app {
         grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto auto;
         height: auto;
         min-height: 100vh;
         gap: 10px;
@@ -1525,10 +1535,96 @@
         grid-template-rows: 320px;
       }
     }
+    @media (pointer: coarse) {
+      #app input, #app select, #app textarea { font-size: 16px; }
+      #app button, #app select { min-height: 44px; }
+    }
+    .tablet-nav, .tablet-label { display: none; }
+
+    @media (max-width: 1180px), (max-width: 1366px) and (any-pointer: coarse) {
+      body { overflow: hidden; }
+      #app {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto minmax(0, 1fr);
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;
+        gap: 8px;
+        padding: 8px;
+      }
+      .topbar { padding: 6px 8px; flex-direction: row; }
+      .topbar-brand { display: none; }
+      .topbar-actions {
+        width: 100%;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: minmax(170px, 1.5fr) repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .topbar-units { min-width: 0; font-size: 12px; }
+      .topbar-units select { flex: 1; width: 100%; min-width: 0; }
+      .topbar-btn {
+        justify-content: center;
+        min-width: 0;
+        padding: 0 8px;
+        border-radius: 8px;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+      .topbar-btn-primary { width: 100%; margin-left: 0; box-shadow: none; }
+      .desktop-label { display: none; }
+      .tablet-label { display: inline; }
+      .tablet-nav {
+        display: flex;
+        grid-column: 1 / -1;
+        gap: 6px;
+      }
+      .tablet-nav button {
+        flex: 1;
+        min-height: 44px;
+        border: 1px solid var(--line-strong);
+        border-radius: 10px;
+        background: var(--panel);
+        color: var(--text);
+        font: 600 15px var(--font-body);
+      }
+      .tablet-nav button[aria-pressed="true"] {
+        background: var(--accent-deep);
+        color: white;
+      }
+      #app > .sidebar-shell, #app > #viewport-panel, #app > #panel-info {
+        grid-column: 1;
+        grid-row: 3;
+        min-height: 0;
+        min-width: 0;
+      }
+      #app[data-tablet-view] > .sidebar-shell,
+      #app[data-tablet-view] > #viewport-panel,
+      #app[data-tablet-view] > #panel-info { display: none; }
+      #app[data-tablet-view="settings"] > .sidebar-shell,
+      #app[data-tablet-view="preview"] > #viewport-panel { display: flex; }
+      #app[data-tablet-view="parts"] > #panel-info { display: block; }
+      #form-container, #panel-info { overscroll-behavior-y: contain; }
+      #app input, #app select, #app textarea { font-size: 16px; }
+      #app button, #app select, #app input:not([type="checkbox"]):not([type="radio"]) {
+        min-height: 44px;
+      }
+      .field { grid-template-columns: minmax(140px, 1fr) minmax(0, 1fr); }
+      .field label { font-size: 14px; }
+      .form-section { padding: 14px; }
+      .cabinet-form { gap: 12px; }
+      .form-section-title { margin-bottom: 12px; }
+      .field + .field { margin-top: 10px; }
+    }
+    @media (max-width: 600px) {
+      .topbar-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .topbar-units { grid-column: 1 / -1; }
+      .topbar-btn { font-size: 12px; gap: 4px; padding: 0 4px; }
+    }
   </style>
 </head>
 <body>
-  <div id="app">
+  <div id="app" data-tablet-view="preview">
     <div class="topbar">
       <div class="topbar-brand">
         <div class="brand-logo-slot" aria-hidden="true">
@@ -1553,19 +1649,24 @@
         </button>
         <button class="topbar-btn" type="button" id="save-project-btn">
           <i class="fa-solid fa-floppy-disk"></i>
-          <span>Save Project</span>
+          <span class="desktop-label">Save Project</span><span class="tablet-label">Save</span>
         </button>
         <button class="topbar-btn" type="button" id="open-layout-btn">
           <i class="fa-solid fa-ruler-combined"></i>
-          <span>Kitchen Layout</span>
+          <span class="desktop-label">Kitchen Layout</span><span class="tablet-label">Layout</span>
         </button>
         <button class="topbar-btn topbar-btn-primary" type="button" id="export-zip-btn">
           <i class="fa-solid fa-file-export"></i>
-          <span>Export Manufacturing ZIP</span>
+          <span class="desktop-label">Export Manufacturing ZIP</span><span class="tablet-label">Export ZIP</span>
         </button>
       </div>
     </div>
-    <aside class="sidebar-shell">
+    <nav class="tablet-nav" aria-label="Editor views">
+      <button type="button" data-tablet-view="settings" aria-controls="settings-panel" aria-pressed="false">Settings</button>
+      <button type="button" data-tablet-view="preview" aria-controls="viewport-panel" aria-pressed="true">Preview</button>
+      <button type="button" id="tablet-parts-button" data-tablet-view="parts" aria-controls="panel-info" aria-pressed="false">Parts</button>
+    </nav>
+    <aside class="sidebar-shell" id="settings-panel">
       <div class="sidebar-header">
         <div class="sidebar-header-row">
           <h1>Cabinet Settings</h1>
@@ -1649,6 +1750,6 @@
       <div class="modal-body" id="sheet-zoom-body"></div>
     </div>
   </div>
-  <script type="module" src="js/main.js?v=20261029a"></script>
+  <script type="module" src="js/main.js?v=20261102a"></script>
 </body>
 </html>

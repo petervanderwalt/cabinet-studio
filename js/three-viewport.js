@@ -16,6 +16,7 @@ export class CabinetViewport {
     this._lastHoverMesh = null;
     this._initScene();
     this._setupPicker();
+    this._setupViewCube();
   }
 
   _initScene() {
@@ -73,6 +74,48 @@ export class CabinetViewport {
     this._resizeObserver = new ResizeObserver(() => this._onResize());
     this._resizeObserver.observe(container);
 
+    this._requestRender();
+  }
+
+  _setupViewCube() {
+    this.viewCube = document.createElement('div');
+    this.viewCube.className = 'view-cube-control';
+    const views = ['Front', 'Back', 'Left', 'Right', 'Top', 'Bottom'];
+    this.viewCube.innerHTML = `
+      <div class="view-cube-stage" aria-hidden="true">
+        <div class="view-cube">${views.map(view =>
+          `<button type="button" tabindex="-1" class="view-cube-face view-cube-${view.toLowerCase()}" data-view="${view.toLowerCase()}">${view}</button>`
+        ).join('')}</div>
+      </div>
+      <select aria-label="Camera view">
+        <option value="">Views…</option>
+        ${views.map(view => `<option value="${view.toLowerCase()}">${view}</option>`).join('')}
+      </select>
+      <button type="button" class="view-cube-home" data-view="home">Home</button>`;
+    this.viewCube.addEventListener('click', event => {
+      const view = event.target.closest('[data-view]')?.dataset.view;
+      if (view) this.setView(view);
+    });
+    this.viewCube.querySelector('select').addEventListener('change', event => {
+      this.setView(event.target.value);
+      event.target.value = '';
+    });
+    this.container.appendChild(this.viewCube);
+    this.cube = this.viewCube.querySelector('.view-cube');
+  }
+
+  setView(view) {
+    const directions = {
+      front: [0, 0, -1], back: [0, 0, 1],
+      left: [1, 0, 0], right: [-1, 0, 0],
+      top: [0, 1, -0.0001], bottom: [0, -1, -0.0001],
+      home: [0.7, 0.6, -1],
+    };
+    if (!directions[view]) return;
+    const distance = this.camera.position.distanceTo(this.controls.target);
+    const direction = new THREE.Vector3(...directions[view]).normalize();
+    this.camera.position.copy(this.controls.target).addScaledVector(direction, distance);
+    this.controls.update();
     this._requestRender();
   }
 
@@ -525,6 +568,10 @@ export class CabinetViewport {
 
     this._updateFog();
     this.renderer.render(this.scene, this.camera);
+    if (this.cube) {
+      const e = this.camera.matrixWorldInverse.elements;
+      this.cube.style.transform = `matrix3d(${e[0]},${-e[1]},${e[2]},0,${-e[4]},${e[5]},${-e[6]},0,${e[8]},${-e[9]},${e[10]},0,0,0,0,1)`;
+    }
 
     if (hasActiveAnimation) {
       this._requestRender();
@@ -536,6 +583,8 @@ export class CabinetViewport {
     window.removeEventListener('resize', this._onResize);
     if (this._resizeObserver) this._resizeObserver.disconnect();
     this._clearScene();
+    this.controls.dispose();
+    this.viewCube?.remove();
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
   }
