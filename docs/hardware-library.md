@@ -17,7 +17,7 @@ Reviewed 2026-10-22, with USA/Canada as the first additional market. Priorities 
 | Concealed hinges / plates | Editable 35 mm cup starting pattern; existing South African four-hole plate; Blum 37/32 two-hole plate | Exact hinge/plate SKUs, fixing holes and overlay/plate-height calculations; face-frame COMPACT models |
 | Adjustable shelf supports | 5 mm and exact Â¼-inch bores, 32 mm pitch / 37 mm setback presets, editable bore depth | Sleeved supports and locking/special shelf supports |
 | Pulls and knobs | None, single-hole knobs; exact 3-inch and 4-inch centre patterns, plus 96/128/160/192/224/256/320 mm pulls; editable screw clearance | SKU/finish purchasing data, edge pulls and recessed pulls |
-| Side-mount slides | Accuride 3832E **fit only**: side clearance and actual 250â€“700 mm lengths in 50 mm steps | Length-specific mounting templates, face-frame blocking/rear brackets; other model families |
+| Side-mount slides | Accuride 3832E side clearance, 250â€“700 mm lengths, cabinet and drawer pilot centres from drawing 3700-9464 R10-0616; editable pilot diameter/depth, row height and setback | Physical trial, face-frame blocking/rear brackets; other model families |
 | Undermount slides | Researched, not selectable | Prioritize Blum TANDEM 563H / 563F and MOVENTO, then Grass Dynapro, Hettich Quadro and Salice Progressa; each needs its own drawer construction and preparation |
 | Alignment dowels | 8 Ã— 30 mm and Â¼ Ã— 1 inch shop starting patterns, matched carcass face/edge bores | Physical trial; per-joint enable/disable; shelf and face-frame joints |
 | Pocket screws | Manual jig assembly note, persisted and exported; no angled face-DXF drilling | Joint placement, screw selection and counts for specific jig/stock combinations |
@@ -27,7 +27,7 @@ Reviewed 2026-10-22, with USA/Canada as the first additional market. Priorities 
 | Biscuits / loose tenons | Researched, not selectable | Separate joiner setup/registration, specific Domino connector or tenon geometry |
 | Lift stays / catches / wall suspension / feet | Research queue | Door-weight and mounting-dependent product selection; carcass/room models do not yet describe these assemblies |
 
-The library currently exposes usable operations, a clearly labelled fit-only runner, and manual pocket-hole instructions. Unimplemented families stay out of the preset selector.
+The library currently exposes usable operations, editable runner pilot centres, and manual pocket-hole instructions. Unimplemented families stay out of the preset selector.
 
 See [pocketed connector research, supplier pictures and machining drawings](pocket-connectors.md) for the Rastex preset and the other connector families.
 
@@ -70,3 +70,17 @@ Run checks with:
 node --experimental-default-type=module tests/hardware-library.mjs
 node --experimental-default-type=module tests/hardware-export.mjs
 ```
+
+## Custom runner dimensions
+
+Select the Accuride 3832E preset in Hardware, then open Runners. Side clearance sets the drawer-box width; slide length sets its depth. The preset uses 12.7 mm clearance per side, 3 mm pilot diameter, 8 mm pilot depth and a hole row 31.8 mm above the drawer-box bottom. Pilot sizes are editable workshop choices, not screw-clearance holes through the steel slide. Slot centres are represented by circular pilot holes in the wood, not routed slots.
+
+The cabinet slide starts 2 mm behind the carcass front for overlay fronts, or front thickness + 3.2 mm for inset fronts. Changing to Custom mounting dimensions unlocks comma-separated cabinet and drawer centres in the current display units. Cabinet centres are measured from the slide front; drawer centres from the box front. The same row height is used on both mating panels. Measure your slides, including their closed member alignment, before using a custom pattern. Reselect the preset to restore its pilot dimensions. Unsupported lengths, invalid centres/depths, insufficient box height or unsupported face-frame mounting omit the affected bores and show a warning.
+
+Source: [Accuride 3832E/3834E drawing and installation instructions](https://www.accuride.com/media/amasty/amfile/attach/516dd0135bf3d6a5f7d76cafd3f74da0.pdf), drawing 3700-9464 R10-0616. Pilot positions select dimensioned mounting locations; they do not describe every slot or bracket on the slide. Physical fit and screw selection still need checking on the supplied hardware.
+
+### Inset doors
+
+Inset doors require inset (fully cranked) hinges rather than standard overlay hinges. Select **Blum 71B3750 — 110° inset hinge** and **Blum frameless inset — 37/32 + door setback** under Hardware. These are editable starting dimensions, not a verified hardware assembly.
+
+The cup starts at Ø35 × 13 mm, with its centre 22 mm from the edge. The inset plate uses one pair of holes 32 mm apart; its actual setback is the editable 37 mm base offset + door thickness + 1.5 mm. Changing door thickness updates drilling, the machined view and STEP export. Changing the pattern to Custom uses the entered offset directly. Face-frame cabinets need their own hinge arrangement; this preset omits plate bores there. Cup fixing screws are not modelled. Check plate height, edge distance, clearance and a physical trial before machining.

@@ -1,6 +1,6 @@
 import { dimension, formatLength, isImperial, toDisplay, stockDimension, unitLabel } from './units.js?v=20261020h';
-import { inferFrontMode } from './cabinet-math.js?v=20261022e';
-import { HARDWARE_CATEGORIES, hardwareBom, selectedHardware } from './hardware-library.js?v=20261022e';
+import { inferFrontMode } from './cabinet-math.js?v=20261103m';
+import { HARDWARE_CATEGORIES, hardwareBom, selectedHardware } from './hardware-library.js?v=20261103i';
 
 const JSZip = window.JSZip;
 
@@ -286,7 +286,7 @@ export function machiningSchedule(panels) {
     instruction: 'Edge bores require a separate setup/jig. Depth layers in DXF are millimetres even in inch drawings. Verify mating joint IDs and drill a test joint.',
     panels: panels.map(p => ({ id: p.id, name: p.name, width: p.cutWidth, height: p.cutHeight, thickness: p.cutThickness,
       warnings: p.hardwareWarnings || [], handlePlacement: p.handlePlacement, joinery:p.joinery, machiningMargin:p.machiningMargin,
-      faceBores: p.holes || [], edgeBores: p.edgeBores || [], grooves:p.grooves || [] })),
+      faceBores: p.holes || [], edgeBores: p.edgeBores || [], grooves:p.grooves || [], decorativeRouting: p.detailMachining ? { ...p.detailMachining, paths:p.detailPaths, closed:p.detailPathsClosed !== false, face:'front' } : undefined })),
   };
 }
 
@@ -345,6 +345,15 @@ function generateCabinetManifest(config, panels) {
     lines.push(`  Side clearance:   ${dimension(config.drawers.sideClearance ?? '-')}`);
   }
   lines.push('');
+  const routed=panels.filter(p=>p.detailMachining);
+  if (routed.length) {
+    lines.push('DECORATIVE ROUTING — FRONT FACE');
+    for (const p of routed) {
+      const cut=p.detailMachining;
+      lines.push(`  ${p.name}: ${cut.tool === 'v-bit' ? `V-bit ${cut.angle} degrees` : `Straight bit ${dimension(cut.diameter)}`}, depth ${dimension(cut.depth)}`);
+    }
+    lines.push('');
+  }
   lines.push('SHELVES');
   lines.push(`  Count:            ${config.shelves?.count ?? 0}`);
   if (config.shelves?.count > 0) {

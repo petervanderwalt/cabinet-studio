@@ -1,7 +1,11 @@
+import { computePanels } from './cabinet-math.js?v=20261103m';
+import { requestCad } from './cad-client.js?v=20261103s';
+import { basicPanelGeometry, machinedPanelGeometry } from './panel-mesh.js';
+import { createPanelMaterial, disposePanelMaterial } from './viewport-materials.js';
 import { formatLength, isImperial, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { downloadProjectFile } from './dxf-writer.js?v=20261022e';
+import { downloadProjectFile } from './dxf-writer.js?v=20261103c';
 import {
   autoArrangeProject,
   createProjectFromConfig,
@@ -10,7 +14,7 @@ import {
   normalizeProject,
   updatePlacement,
   updateRoom,
-} from './project-io.js?v=20261022e';
+} from './project-io.js?v=20261103c';
 
 const LAYOUT_SEED_KEY = 'cabinet-studio-layout-seed';
 const POSITION_SNAP = 10;
@@ -299,7 +303,7 @@ class KitchenLayoutViewport {
     this.container = container;
     this.callbacks = callbacks;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xf7faff);
+    this.scene.background = new THREE.Color(0xfafafa);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(this.renderer.domElement);
@@ -315,6 +319,7 @@ class KitchenLayoutViewport {
     this.pointer = new THREE.Vector2();
     this.pickMeshes = [];
     this.meshByInstanceId = new Map();
+    this.cadModels = new Map();
     this.drag = null;
 
     this.roomGroup = new THREE.Group();
@@ -327,7 +332,7 @@ class KitchenLayoutViewport {
     keyLight.position.set(1800, 2600, 1400);
     this.scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight(0xf4f8ff, 0.5);
+    const fillLight = new THREE.DirectionalLight(0xf8f8f8, 0.5);
     fillLight.position.set(-1800, 1600, -1200);
     this.scene.add(fillLight);
 
@@ -343,8 +348,9 @@ class KitchenLayoutViewport {
     const dom = this.renderer.domElement;
     dom.addEventListener('pointerdown', (event) => this.onPointerDown(event));
     dom.addEventListener('pointermove', (event) => this.onPointerMove(event));
-    dom.addEventListener('pointerup', () => this.onPointerUp());
-    dom.addEventListener('pointerleave', () => this.onPointerUp());
+    dom.addEventListener('pointerup', event => this.onPointerUp(event));
+    dom.addEventListener('pointerleave', () => { this._rightGesture = null; this.onPointerUp(); });
+    dom.addEventListener('pointercancel', () => { this._rightGesture = null; this.onPointerUp(); });
     dom.addEventListener('contextmenu', (event) => this.onContextMenu(event));
   }
 
@@ -355,7 +361,10 @@ class KitchenLayoutViewport {
     this.snapPreview = snapPreview;
     this._rebuildRoom();
     this._rebuildCabinets();
-    this._fitCamera();
+    if (!this._cameraInitialized) {
+      this._fitCamera();
+      this._cameraInitialized = true;
+    }
     this.requestRender();
   }
 
@@ -377,7 +386,7 @@ class KitchenLayoutViewport {
     this.roomGroup.add(floor);
 
     const wallMaterial = new THREE.MeshStandardMaterial({
-      color: 0xeaf1ff,
+      color: 0xeeeeee,
       transparent: true,
       opacity: 0.38,
       side: THREE.DoubleSide,
@@ -392,7 +401,7 @@ class KitchenLayoutViewport {
     sideWall.position.set(-room.width / 2, room.height / 2, 0);
     this.roomGroup.add(sideWall);
 
-    const grid = new THREE.GridHelper(Math.max(room.width, room.depth), Math.max(10, Math.round(Math.max(room.width, room.depth) / 200)), 0xd8e1f0, 0xe8eef8);
+    const grid = new THREE.GridHelper(Math.max(room.width, room.depth), Math.max(10, Math.round(Math.max(room.width, room.depth) / 200)), 0xdddddd, 0xeeeeee);
     grid.position.y = 1;
     grid.material.opacity = 0.58;
     grid.material.transparent = true;
@@ -400,7 +409,7 @@ class KitchenLayoutViewport {
 
     const outline = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(room.width, room.height, room.depth)),
-      new THREE.LineBasicMaterial({ color: 0xc3d0e8 })
+      new THREE.LineBasicMaterial({ color: 0xcccccc })
     );
     outline.position.y = room.height / 2;
     this.roomGroup.add(outline);
@@ -410,7 +419,7 @@ class KitchenLayoutViewport {
         new THREE.Vector3(-room.width / 2, 0, -room.depth / 2 + 1),
         new THREE.Vector3(room.width / 2, 0, -room.depth / 2 + 1),
       ]),
-      new THREE.LineDashedMaterial({ color: 0x7a90b8, dashSize: 80, gapSize: 40 })
+      new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 80, gapSize: 40 })
     );
     wallGuide.computeLineDistances();
     wallGuide.position.y = room.wallCabinetBottom;
@@ -418,63 +427,102 @@ class KitchenLayoutViewport {
   }
 
   _rebuildCabinets() {
-    disposeChildren(this.cabinetGroup);
+    const previous = this.meshByInstanceId;
+    this.meshByInstanceId = new Map();
     this.pickMeshes = [];
-    this.meshByInstanceId.clear();
-
-    this.instances.forEach((instance) => {
-      const placement = instance.placement;
+    const activeKeys = new Set();
+    for (const instance of this.instances) {
+      const key = JSON.stringify(instance.config);
+      activeKeys.add(key);
+      let mesh = previous.get(instance.instanceId);
+      if (mesh?.userData.configKey !== key) mesh = null;
+      if (!mesh) mesh = this._createCabinet(instance, key);
       const pos = getPlacementWorldPosition(this.project, instance);
-      const geometrySize = getCabinetGeometrySize(instance);
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(geometrySize.width, geometrySize.height, geometrySize.depth),
-        new THREE.MeshStandardMaterial({
-          color: categoryColor(instance.config.category),
-          roughness: 0.82,
-          metalness: 0.02,
-        })
-      );
       mesh.position.set(pos.x, pos.y, pos.z);
-      mesh.rotation.y = THREE.MathUtils.degToRad(placement.rotation || 0);
-      mesh.castShadow = false;
-      mesh.receiveShadow = true;
-      mesh.userData.instanceId = instance.instanceId;
-      mesh.userData.baseColor = categoryColor(instance.config.category);
-
-      const edges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.BoxGeometry(geometrySize.width, geometrySize.height, geometrySize.depth)),
-        new THREE.LineBasicMaterial({ color: 0x6f85ad })
-      );
-      edges.userData.isEdgeHelper = true;
-      mesh.add(edges);
-
-      const shadow = new THREE.Mesh(
-        new THREE.PlaneGeometry(geometrySize.width, geometrySize.depth),
-        new THREE.MeshBasicMaterial({ color: 0x7d94ba, transparent: true, opacity: 0.08 })
-      );
-      shadow.rotation.x = -Math.PI / 2;
-      shadow.position.y = -pos.height / 2 + 1;
-      mesh.add(shadow);
-
+      mesh.rotation.y = THREE.MathUtils.degToRad(instance.placement.rotation || 0);
       this.cabinetGroup.add(mesh);
       this.pickMeshes.push(mesh);
       this.meshByInstanceId.set(instance.instanceId, mesh);
-    });
-
+    }
+    for (const [id, mesh] of previous) {
+      if (this.meshByInstanceId.get(id) !== mesh) {
+        this.cabinetGroup.remove(mesh);
+        disposeObject(mesh);
+      }
+    }
+    for (const key of this.cadModels.keys()) if (!activeKeys.has(key)) this.cadModels.delete(key);
     this._applySelectionStyles();
+    this._updateModelStatus();
+  }
+
+  _createCabinet(instance, key) {
+    const size = getCabinetGeometrySize(instance);
+    // Invisible footprint retains cabinet-level picking and placement snapping.
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(size.width, size.height, size.depth),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    mesh.userData = { instanceId: instance.instanceId, configKey: key, detailed: false };
+    const panels = computePanels(instance.config);
+    const panelMeshes = new Map();
+    for (const panel of panels) {
+      const part = new THREE.Mesh(basicPanelGeometry(panel), createPanelMaterial(panel));
+      const position = layoutPanelPosition(panel, size);
+      part.position.set(position.x, position.y, position.z);
+      part.rotation.y = Math.PI;
+      part.userData.isCabinetPanel = true;
+      this._addPanelEdges(part);
+      mesh.add(part);
+      panelMeshes.set(panel.id, { part, panel });
+    }
+    if (!this.cadModels.has(key)) this.cadModels.set(key, requestCad('mesh', panels));
+    this.cadModels.get(key).then(models => {
+      if (this.meshByInstanceId.get(instance.instanceId) !== mesh) return;
+      for (const model of models) {
+        const entry = panelMeshes.get(model.id);
+        if (!entry) continue;
+        const { part, panel } = entry;
+        for (const child of [...part.children]) { part.remove(child); disposeObject(child); }
+        part.geometry.dispose();
+        part.geometry = machinedPanelGeometry(panel, model);
+        this._addPanelEdges(part);
+      }
+      mesh.userData.detailed = true;
+      this._applySelectionStyles();
+      this.requestRender();
+    }).catch(error => {
+      if (this.meshByInstanceId.get(instance.instanceId) !== mesh) return;
+      mesh.userData.detailError = error.message;
+      this._updateModelStatus();
+    });
+    return mesh;
+  }
+
+  _addPanelEdges(part) {
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(part.geometry, 18),
+      new THREE.LineBasicMaterial({ color: 0x666666, transparent: true, opacity: 0.45 }));
+    edges.userData.isEdgeHelper = true;
+    part.add(edges);
+  }
+
+  _updateModelStatus() {
+    const status = document.getElementById('layout-model-status');
+    if (!status) return;
+    const meshes = [...this.meshByInstanceId.values()];
+    const pending = meshes.filter(mesh => !mesh.userData.detailed && !mesh.userData.detailError).length;
+    status.textContent = pending ? `Updating cabinet details (${meshes.length - pending}/${meshes.length})…`
+      : meshes.some(mesh => mesh.userData.detailError) ? 'Some machined details unavailable; panel shapes retained.' : 'Ready';
+    status.setAttribute('aria-busy', String(pending > 0));
   }
 
   _applySelectionStyles() {
     this.meshByInstanceId.forEach((mesh, instanceId) => {
-      const material = mesh.material;
-      const isSelected = instanceId === this.selectedInstanceId;
-      const isSnapTarget = this.snapPreview?.targetInstanceId === instanceId;
-      material.color.setHex(mesh.userData.baseColor);
-      material.emissive.setHex(isSnapTarget ? 0xd48c13 : isSelected ? 0x1738b8 : 0x000000);
-      material.emissiveIntensity = isSnapTarget ? 0.2 : isSelected ? 0.14 : 0;
-      mesh.children.forEach((child) => {
-        if (child.userData.isEdgeHelper && child.material) {
-          child.material.color.setHex(isSnapTarget ? 0xd48c13 : isSelected ? 0x2754ff : 0x6f85ad);
+      const selected = instanceId === this.selectedInstanceId;
+      const snapTarget = this.snapPreview?.targetInstanceId === instanceId;
+      mesh.traverse(part => {
+        if (part.userData.isCabinetPanel) {
+          part.material.emissive.setHex(snapTarget ? 0xd48c13 : 0x333333);
+          part.material.emissiveIntensity = snapTarget ? 0.12 : selected ? 0.06 : 0;
+        } else if (part.userData.isEdgeHelper) {
+          part.material.color.setHex(snapTarget ? 0xd48c13 : selected ? 0x333333 : 0x666666);
         }
       });
     });
@@ -485,6 +533,7 @@ class KitchenLayoutViewport {
     const room = this.project.layout.room;
     const targetY = Math.max(500, room.height * 0.35);
     this.controls.target.set(0, targetY, 0);
+    this.controls.update();
     this.requestRender();
   }
 
@@ -504,6 +553,7 @@ class KitchenLayoutViewport {
     requestAnimationFrame(() => {
       this._frameRequested = false;
       this.renderer.render(this.scene, this.camera);
+      this._updateModelStatus();
     });
   }
 
@@ -521,6 +571,11 @@ class KitchenLayoutViewport {
   }
 
   onPointerDown(event) {
+    if (event.button === 2) {
+      this._rightGesture = { x: event.clientX, y: event.clientY, moved: false,
+        instanceId: this.hitCabinet(event)?.object?.userData?.instanceId };
+      return;
+    }
     if (event.button !== 0) return;
     const hit = this.hitCabinet(event);
     if (!hit?.object) return;
@@ -542,6 +597,9 @@ class KitchenLayoutViewport {
   }
 
   onPointerMove(event) {
+    if (this._rightGesture && Math.hypot(event.clientX - this._rightGesture.x, event.clientY - this._rightGesture.y) > 5) {
+      this._rightGesture.moved = true;
+    }
     const hit = this.hitCabinet(event);
     this.renderer.domElement.style.cursor = hit ? 'grab' : 'default';
     if (!this.drag) return;
@@ -582,7 +640,15 @@ class KitchenLayoutViewport {
     this.callbacks.onMove(this.drag.instanceId, snapped);
   }
 
-  onPointerUp() {
+  onPointerUp(event) {
+    const right = this._rightGesture;
+    this._rightGesture = null;
+    if (event?.button === 2 && right?.instanceId && !right.moved
+        && Math.hypot(event.clientX - right.x, event.clientY - right.y) <= 5) {
+      this.callbacks.onSelect(right.instanceId);
+      this.callbacks.onRotate(right.instanceId);
+    }
+    if (!this.drag) return;
     this.drag = null;
     this.controls.enabled = true;
     currentSnapPreview = null;
@@ -594,11 +660,6 @@ class KitchenLayoutViewport {
 
   onContextMenu(event) {
     event.preventDefault();
-    const hit = this.hitCabinet(event);
-    const instanceId = hit?.object?.userData?.instanceId || this.selectedInstanceId;
-    if (!instanceId) return;
-    this.callbacks.onSelect(instanceId);
-    this.callbacks.onRotate(instanceId);
   }
 }
 
@@ -795,12 +856,11 @@ function pickPreview(current, candidate) {
   return candidate.distance < current.distance ? candidate : current;
 }
 
-function categoryColor(category) {
-  switch (category) {
-    case 'wall': return 0xe7f0ff;
-    case 'tall': return 0xf2f6ff;
-    default: return 0xf8fbff;
-  }
+// The editor faces -Z; layout cabinets face +Z at zero placement rotation.
+function layoutPanelPosition(panel, size) {
+  return { x: size.width / 2 - panel.posX,
+    y: panel.posY - size.height / 2,
+    z: size.depth / 2 - panel.posZ };
 }
 
 function getCabinetGeometrySize(instance) {
@@ -811,17 +871,17 @@ function getCabinetGeometrySize(instance) {
   };
 }
 
+function disposeObject(object) {
+  object.traverse(node => {
+    node.geometry?.dispose();
+    if (node.material) disposePanelMaterial(node.material);
+  });
+}
+
 function disposeChildren(group) {
-  while (group.children.length) {
-    const child = group.children[0];
+  for (const child of [...group.children]) {
     group.remove(child);
-    child.traverse((node) => {
-      if (node.geometry) node.geometry.dispose();
-      if (node.material) {
-        if (Array.isArray(node.material)) node.material.forEach((material) => material.dispose());
-        else node.material.dispose();
-      }
-    });
+    disposeObject(child);
   }
 }
 

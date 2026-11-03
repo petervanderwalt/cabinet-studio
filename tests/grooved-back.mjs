@@ -1,3 +1,4 @@
+import { frontLayout } from '../js/front-layout.js';
 import assert from 'node:assert/strict';
 import { defaultCabinet, computePanels } from '../js/cabinet-math.js';
 import { panelSolidData, panelVoids } from '../js/panel-solid.js';
@@ -29,7 +30,7 @@ for (const construction of ['frameless','face-frame']) for (const category of ['
  for (const shelf of panels.filter(p=>p.type==='shelf')) near(bounds(shelf)[2][1],bb[2][0]-2);
  const legacyDepth = c.overlay.type==='inset' ? c.depth : c.depth-c.materials.doorThickness;
  c.front.mode='drawers'; c.drawers.count=3;
- const bankHeight = c.height - (construction === 'frameless' ? tk + 3 : tk) - 3;
+ const bankHeight = frontLayout(c).height;
  const each = (bankHeight-2*c.reveal)/3;
  c.drawers.heights = [each,each,each];
  const drawers = computePanels(c);

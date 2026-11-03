@@ -1,6 +1,9 @@
+import { setDetailMachining } from './detail-machining.js?v=20261103c';
+import { runnerSettings } from './runner-layout.js';
+import { frontLayout, drawerBoxBounds } from './front-layout.js';
 import { doorDetailPath, doorSlatPaths } from './door-detail.js?v=20261020o';
 import { splitStockAppearance } from './material-presets.js?v=20261020f';
-import { hardwareWarnings } from './hardware-library.js?v=20261022e';
+import { hardwareWarnings } from './hardware-library.js?v=20261103i';
 import { addDowelJoinery } from './joinery.js?v=20261022e';
 import { addCamJoinery } from './cam-joinery.js?v=20261022e';
 import { addDados } from './dado-joinery.js?v=20261022e';
@@ -25,7 +28,6 @@ export const DEFAULT_VALUES = {
   handleEdgeOffset: 40,
   doorHandleHeight: 100,
   drawerHandleTopOffset: 50,
-  tenonLength: 10,
   faceFrameOverhang: 0,
 };
 
@@ -78,6 +80,9 @@ export function defaultCabinet() {
     overlay: { type: 'full-overlay', amount: 18 },
     reveal: 3,
     hardware: {
+      hingeBoreDepth: 13,
+      shelfPinDepth: 10,
+      hingePlateDepth: 12,
       hingeBoreDiameter: 35,
       hingeBoreInset: 22,
       shelfPinSpacing: 32,
@@ -110,7 +115,8 @@ export function computePanels(cabinet) {
   const Td = cabinet.materials.doorThickness;
   const Tb = cabinet.materials.backThickness;
   const g = cabinet.reveal ?? DEFAULT_VALUES.reveal;
-  const O = cabinet.overlay.type === 'inset' ? 0 : cabinet.overlay.amount;
+  const front = frontLayout(cabinet);
+  const boxWarnings = [];
   const isFrameless = cabinet.construction === 'frameless';
   const isInset = cabinet.overlay.type === 'inset';
 
@@ -123,7 +129,8 @@ export function computePanels(cabinet) {
   const hingeBoreInset = hw.hingeBoreInset ?? DEFAULT_VALUES.hingeBoreInset;
   const pinSpacing = hw.shelfPinSpacing ?? DEFAULT_VALUES.shelfPinSpacing;
   const pinSetback = hw.shelfPinSetback ?? DEFAULT_VALUES.shelfPinSetback;
-  const hingePlateFrontHoleOffset = hw.hingePlateFrontHoleOffset ?? DEFAULT_VALUES.hingePlateFrontHoleOffset;
+  const hingePlateFrontHoleOffset = (hw.hingePlateFrontHoleOffset ?? DEFAULT_VALUES.hingePlateFrontHoleOffset)
+    + (hw.hingePlatePattern === 'blum-inset' ? cabinet.materials.doorThickness + 1.5 : 0);
   const hingePlateRearHoleOffset = hw.hingePlateRearHoleOffset ?? DEFAULT_VALUES.hingePlateRearHoleOffset;
   const hingePlateHoleSpacing = hw.hingePlateHoleSpacing ?? DEFAULT_VALUES.hingePlateHoleSpacing;
   const handleHoleSpacing = hw.handleHoleSpacing ?? DEFAULT_VALUES.handleHoleSpacing;
@@ -148,10 +155,11 @@ export function computePanels(cabinet) {
   const ffDepthOff = isFrameless ? 0 : T; // face frame occupies front T mm
   const isGroovedBack = cabinet.backMount === 'grooved-in';
   const backFrontZ = isGroovedBack ? sideDepth - Tb : sideDepth;
-  const interiorDepth = Math.max(0, backFrontZ - ffDepthOff);
+  const interiorDepth = Math.max(0, backFrontZ - front.boxFront);
+  const runner = runnerSettings(cabinet);
   const sideMountRunner = hw.runnerMode === 'side-mount';
-  const runnerFits = !sideMountRunner || (isFrameless && hw.runnerLength > 0 && hw.runnerLength + 3.2 <= interiorDepth &&
-    cabinet.drawers.sideClearance >= 12.7 && cabinet.drawers.sideClearance <= 13.5);
+  const runnerFits = !sideMountRunner || (isFrameless && hw.runnerLength > 0 && hw.runnerLength + Math.max(3.2, runner.setback - front.boxFront) <= interiorDepth &&
+    (hw.runnerPattern === 'custom' ? cabinet.drawers.sideClearance >= 0 : cabinet.drawers.sideClearance >= 12.7 && cabinet.drawers.sideClearance <= 13.5));
   const drawerDepth = Math.max(0, sideMountRunner ? (runnerFits ? hw.runnerLength : 0) : interiorDepth - 20);
   const backBottomY = bottomY + T - grooveDepth;
   const backTopY = H - T + grooveDepth;
@@ -270,18 +278,19 @@ export function computePanels(cabinet) {
     });
 
     // Drawer cabinets use runner reference holes instead of shelf pin rows.
-    if (drawerCount > 0 && cabinet.drawers.heights.length === drawerCount && sideCutDepth > 80 && !sideMountRunner) {
-      const drawerBoxTopInset = 24;
-      const drawerBoxBottomInset = 12;
+    if (drawerCount > 0 && cabinet.drawers.heights.length === drawerCount && sideCutDepth > 80) {
       const slideHoleInset = Math.min(64, Math.max(20, drawerDepth * 0.18));
       const slideHoleXs = [slideHoleInset, drawerDepth / 2, drawerDepth - slideHoleInset];
-      let drawerYOffset = isFrameless || tkHeight > 0 ? tkHeight + topClearance : 0;
+      let drawerYOffset = front.bottom;
       for (let i = 0; i < drawerCount; i++) {
         const dh = cabinet.drawers.heights[i];
-        const boxH = Math.max(30, dh - drawerBoxTopInset - drawerBoxBottomInset);
-        const slideCenterY = drawerYOffset + drawerBoxBottomInset + boxH / 2;
-        for (const x of slideHoleXs) {
-          panel.holes.push({ x, y: slideCenterY, diameter: 3, purpose: 'drawer-runner-reference' });
+        const bounds = drawerBoxBounds(cabinet, drawerYOffset, dh);
+        const slideCenterY = sideMountRunner ? bounds.bottom + runner.height : bounds.center;
+        const xs = sideMountRunner ? (runnerFits && runner.valid && bounds.height >= runner.height + runner.diameter / 2 + 2 ? runner.pattern.cabinet.map(x => x + runner.setback) : []) : (bounds.height >= 30 ? slideHoleXs : []);
+        for (const x of xs) {
+          panel.holes.push({ x, y: slideCenterY, diameter: sideMountRunner ? runner.diameter : 3,
+            purpose: sideMountRunner ? 'drawer-runner-mount' : 'drawer-runner-reference',
+            ...(sideMountRunner ? { depth: runner.depth, face: 'inside' } : {}) });
         }
         drawerYOffset += dh + g;
       }
@@ -299,12 +308,12 @@ export function computePanels(cabinet) {
     }
 
     // Hinge mounting plate holes (on the 32mm line near the front edge)
-    if (doorCount > 0 && drawerCount === 0 && !(hw.library?.hingePlate === 'plate-37-32' && !isFrameless)) {
+    if (doorCount > 0 && drawerCount === 0 && !((hw.library?.hingePlate === 'plate-37-32' || hw.hingePlatePattern === 'blum-inset') && !isFrameless)) {
       const hingeSide = cabinet.doors.hingeSide ?? 'both';
       const needsHingePlates = hingeSide === 'both' || hingeSide === side;
       if (needsHingePlates) {
-        const doorBottomY = isFrameless || tkHeight > 0 ? tkHeight + topClearance : 0;
-        const doorH = H - (isFrameless ? tkHeight + topClearance : tkHeight) - topClearance;
+        const doorBottomY = front.bottom;
+        const doorH = front.height;
         const hingeCount = H > 1300 ? 3 : 2;
         const hingeVertPositions = hingeCount === 2 ? [100, doorH - 100] : [100, doorH / 2, doorH - 100];
         const hingePlateDepths = hw.hingePlateSecondRow === false
@@ -525,7 +534,7 @@ export function computePanels(cabinet) {
             cutThickness: shelfThk,
             posX: W / 2,
             posY: sy,
-            posZ: ffDepthOff + shelfD / 2,
+            posZ: front.boxFront + shelfD / 2,
             sizeX: shelfW,
             sizeY: shelfThk,
             sizeZ: shelfD,
@@ -568,7 +577,6 @@ export function computePanels(cabinet) {
   if (!isFrameless) {
     const ffw = cabinet.materials.faceFrameWidth;
     const ffo = DEFAULT_VALUES.faceFrameOverhang;
-    const tenonLen = DEFAULT_VALUES.tenonLength;
     const topRailW = cabinet.materials.topRailWidth ?? ffw;
     const bottomRailW = cabinet.materials.bottomRailWidth ?? ffw;
 
@@ -597,7 +605,8 @@ export function computePanels(cabinet) {
     }
 
     // Top rail
-    const railLen = W - 2 * ffw + 2 * tenonLen;
+    // Rails butt between stiles; no unmodelled tenon allowance.
+    const railLen = W - 2 * (ffo + ffw);
     if (railLen > 0) {
       panels.push(makePanel({
         id: 'rail-top',
@@ -645,15 +654,15 @@ export function computePanels(cabinet) {
   // DOORS  (skip if drawers fill the front)
   // ============================================================
   if (doorCount > 0 && drawerCount === 0) {
-    const doorH = H - (isFrameless ? tkHeight + topClearance : tkHeight) - topClearance;
+    const doorH = front.height;
 
     const centerGap = g;
 
     let doorWidths = [];
     if (doorCount === 1) {
-      doorWidths.push(W - g);
+      doorWidths.push(front.width);
     } else {
-      const eachDoor = (W - g - centerGap) / 2;
+      const eachDoor = (front.width - centerGap) / 2;
       doorWidths.push(eachDoor, eachDoor);
     }
 
@@ -677,19 +686,13 @@ export function computePanels(cabinet) {
       if (doorCount === 1) {
         doorPosX = W / 2;
       } else {
-        const leftDoorX = g / 2 + doorWidths[0] / 2;
-        const rightDoorX = W - g / 2 - doorWidths[1] / 2;
+        const leftDoorX = front.left + doorWidths[0] / 2;
+        const rightDoorX = W - front.left - doorWidths[1] / 2;
         doorPosX = isLeftDoor ? leftDoorX : rightDoorX;
       }
 
-      // For frameless: door front face is flush with front of box
-      // For overlay: door sits at Z = -Td (door thickness extends forward from front)
-      // Actually, the door is mounted ON the front of the box
-      // The door's back face is at Z = 0 (front of box)
-      // The door extends from Z = -Td to Z = 0
-      const doorPosZ = -Td / 2;
-
-      const doorY = (isFrameless || tkHeight > 0 ? tkHeight + topClearance : 0) + dh / 2;
+      const doorPosZ = front.z;
+      const doorY = front.bottom + dh / 2;
 
       const panel = makePanel({
         id: `door-${i + 1}`,
@@ -716,6 +719,8 @@ export function computePanels(cabinet) {
         panel.detailPaths = doorSlatPaths(dw, dh, cabinet.doors);
         panel.detailPathsClosed = false;
       }
+
+      setDetailMachining(panel, cabinet.doors);
 
       // Hinge cup bores
       const hingeCount = dh > 1300 ? 3 : 2;
@@ -753,35 +758,37 @@ export function computePanels(cabinet) {
   if (drawerCount > 0 && cabinet.drawers.heights.length === drawerCount) {
     // Drawer bank sits below the top clearance, above the bottom
     // Opening height for drawer bank = same as door opening height
-    const drawerBankH = H - (isFrameless ? tkHeight + topClearance : tkHeight) - topClearance;
+    const drawerBankH = front.height;
     const sumHeights = cabinet.drawers.heights.reduce((a, b) => a + b, 0);
     const interDrawerGaps = (drawerCount - 1) * g;
 
     if (Math.abs(sumHeights + interDrawerGaps - drawerBankH) < 1) {
-      const drawerW = W - g;
+      const drawerW = front.width;
 
       const drawerBoxColor = 0xE4ECF8;
       const drawerSideThk = cabinet.drawers.sideThickness ?? 12;
       const drawerBackThk = cabinet.drawers.sideThickness ?? 12;
       const drawerBottomThk = cabinet.drawers.bottomThickness ?? 6;
       const drawerClr = cabinet.drawers.sideClearance ?? 10;
-      const drawerBoxTopInset = 24;
-      const drawerBoxBottomInset = 12;
-      const interW = W - 2 * T;
+      const boxSideInset = isFrameless ? T : Math.max(T, cabinet.materials.faceFrameWidth);
+      const interW = W - 2 * boxSideInset;
 
-      let yOffset = isFrameless || tkHeight > 0 ? tkHeight + topClearance : 0;
+      let yOffset = front.bottom;
       for (let i = 0; i < drawerCount; i++) {
         const dh = cabinet.drawers.heights[i];
         const dy = yOffset + dh / 2;
-        const boxH = Math.max(30, dh - drawerBoxTopInset - drawerBoxBottomInset);
-        const boxY = yOffset + drawerBoxBottomInset + boxH / 2;
-        const drawerFrontZ = -Td / 2;
-        const boxStartZ = ffDepthOff;
+        const box = drawerBoxBounds(cabinet, yOffset, dh);
+        const boxH = box.height;
+        const boxY = box.center;
+        if (sideMountRunner && (!runner.valid || boxH < runner.height + runner.diameter / 2 + 2)) boxWarnings.push(`Drawer ${i + 1} runner pilot dimensions do not fit the panels; mounting bores omitted.`);
+        if (boxH < 30) boxWarnings.push(`Drawer ${i + 1} has insufficient box clearance; box and runner holes omitted.`);
+        const drawerFrontZ = front.z;
+        const boxStartZ = front.boxFront;
         const boxCenterZ = boxStartZ + drawerDepth / 2;
         const slideHoleInset = Math.min(64, Math.max(20, drawerDepth * 0.18));
         const slideHoleXs = [slideHoleInset, drawerDepth / 2, drawerDepth - slideHoleInset];
         const slideCenterY = boxH / 2;
-        const makeSlideReferenceHoles = () => sideMountRunner ? [] : slideHoleXs.map(x => ({
+        const makeSlideReferenceHoles = () => sideMountRunner ? (runner.valid && boxH >= runner.height + runner.diameter / 2 + 2 ? runner.pattern.drawer.map(x => ({ x, y: runner.height, diameter: runner.diameter, depth: runner.depth, face: 'outside', purpose: 'drawer-slide-mount' })) : []) : slideHoleXs.map(x => ({
           x,
           y: slideCenterY,
           diameter: 3,
@@ -813,12 +820,13 @@ export function computePanels(cabinet) {
           drawerFrontPanel.detailPaths = doorSlatPaths(drawerW, dh, cabinet.drawers);
           drawerFrontPanel.detailPathsClosed = false;
         }
-        addHandleHoles(drawerFrontPanel, drawerW / 2, dh - drawerHandleTopOffset, false);
+        setDetailMachining(drawerFrontPanel, cabinet.drawers);
+        addHandleHoles(drawerFrontPanel, drawerW / 2, hw.drawerHandlePosition === 'center' ? dh / 2 : dh - drawerHandleTopOffset, false);
         drawerFrontPanel.drawDepth = drawerDepth;
 
         // Drawer left side
         const sideW = interW - 2 * drawerClr - 2 * drawerSideThk;
-        if (sideW > 0 && runnerFits) {
+        if (sideW > 0 && runnerFits && boxH >= 30) {
           panels.push(makePanel({
             id: `drawer-${i + 1}-side-left`,
             name: `Drawer ${i + 1} Left Side`,
@@ -828,7 +836,7 @@ export function computePanels(cabinet) {
             cutWidth: drawerDepth,
             cutHeight: boxH,
             cutThickness: drawerSideThk,
-            posX: T + drawerClr + drawerSideThk / 2,
+            posX: boxSideInset + drawerClr + drawerSideThk / 2,
             posY: boxY,
             posZ: boxCenterZ,
             sizeX: drawerSideThk,
@@ -848,7 +856,7 @@ export function computePanels(cabinet) {
             cutWidth: drawerDepth,
             cutHeight: boxH,
             cutThickness: drawerSideThk,
-            posX: W - T - drawerClr - drawerSideThk / 2,
+            posX: W - boxSideInset - drawerClr - drawerSideThk / 2,
             posY: boxY,
             posZ: boxCenterZ,
             sizeX: drawerSideThk,
@@ -930,7 +938,7 @@ export function computePanels(cabinet) {
     panel.holes = panel.holes.filter(h => !invalidPurposes.has(h.purpose));
   }
   const joineryWarnings = [...addDowelJoinery(panels, cabinet), ...addCamJoinery(panels, cabinet), ...addDados(panels, cabinet), ...addCabineoJoinery(panels, cabinet)];
-  if (panels.length) panels[0].hardwareWarnings = [...new Set([...(panels[0].hardwareWarnings || []), ...hardwareWarnings(cabinet), ...drillingWarnings, ...joineryWarnings])];
+  if (panels.length) panels[0].hardwareWarnings = [...new Set([...(panels[0].hardwareWarnings || []), ...hardwareWarnings(cabinet), ...boxWarnings, ...drillingWarnings, ...joineryWarnings])];
   return panels;
 }
 
@@ -977,7 +985,7 @@ export function validateCabinet(cabinet) {
       const g = cabinet.reveal ?? DEFAULT_VALUES.reveal;
       const sumH = dh.reduce((a, b) => a + b, 0);
       const interGaps = (drawerCount - 1) * g;
-      const expectedH = cabinet.height - (hasToeKick(cabinet) ? cabinet.toeKick.height : 0) - DEFAULT_VALUES.topClearance - DEFAULT_VALUES.topClearance;
+      const expectedH = frontLayout(cabinet).height;
       if (Math.abs(sumH + interGaps - expectedH) > 2) {
         warnings.push(`Drawer heights sum to ${sumH + interGaps}mm but opening height is ${expectedH}mm (diff ${Math.abs(sumH + interGaps - expectedH).toFixed(1)}mm)`);
       }

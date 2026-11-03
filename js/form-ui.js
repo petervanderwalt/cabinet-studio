@@ -1,9 +1,11 @@
+import { runnerPattern, runnerSettings } from './runner-layout.js';
+import { frontLayout } from './front-layout.js';
 import { additionalDrawerHeight, distributeDrawerHeights } from './drawer-heights.js';
-import { dimension, formatLength, getUnits, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
+import { dimension, formatLength, parseLength, getUnits, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 // form-ui.js - Build and manage the cabinet config form
-import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261022e';
+import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261103m';
 import { applyGlobalMaterialSelections, defaultStockMaterials } from './material-presets.js?v=20261020f';
-import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261022e';
+import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261103i';
 
 const SECTION_ICONS = {
   'Cabinet Type': 'fa-cube',
@@ -54,7 +56,7 @@ export class CabinetForm {
       const category = event.target.dataset.hardwareCategory;
       if (category) {
         const select = form.querySelector(`[data-key="hardware.library.${category}"]`);
-        if (select) select.value = 'custom';
+        if (select && category !== 'joinery') select.value = 'custom';
         const note = form.querySelector(`[data-hardware-note="${category}"]`);
         if (note) note.textContent = 'Custom dimensions';
       }
@@ -64,14 +66,15 @@ export class CabinetForm {
     form.addEventListener('change', handleInput);
 
     this._buildSection(form, 'Cabinet Type', this._typeFields());
-    this._buildSection(form, this._frontDetailsTitle(), this._frontDetailsFields());
-    if (this._frontMode() === 'doors') {
-      this._buildSection(form, 'Interior', this._interiorFields());
-    }
-    this._buildSection(form, 'Construction', this._constructionFields());
-    this._buildSection(form, 'Toe Kick', this._toeKickFields());
-    this._buildSection(form, 'Overlay & Reveal', this._overlayFields());
-    this._buildSection(form, 'Hardware', this._hardwareFields());
+    const sections = [
+      ['front', this._frontMode() === 'drawers' ? 'Drawers' : 'Doors', this._frontDetailsTitle(), this._frontDetailsFields()],
+      ...(this._frontMode() === 'doors' ? [['interior', 'Interior', 'Interior', this._interiorFields()]] : []),
+      ['construction', 'Construction', 'Construction', this._constructionFields()],
+      ['toe-kick', 'Toe kick', 'Toe Kick', this._toeKickFields()],
+      ['overlay', 'Overlay', 'Overlay & Reveal', this._overlayFields()],
+      ['hardware', 'Hardware', 'Hardware', this._hardwareFields()],
+    ];
+    this._buildSettingsTabs(form, sections);
 
     this._validationEl = document.createElement('div');
     this._validationEl.className = 'validation-msgs';
@@ -79,6 +82,50 @@ export class CabinetForm {
 
     this.form = form;
     this.container.appendChild(form);
+  }
+
+  _buildSettingsTabs(form, sections) {
+    if (!sections.some(([id]) => id === this._activeSettingsTab)) this._activeSettingsTab = 'front';
+    const tabs = document.createElement('div');
+    tabs.className = 'settings-tabs';
+    tabs.setAttribute('role', 'tablist');
+    tabs.setAttribute('aria-label', 'Cabinet settings');
+    form.appendChild(tabs);
+    const entries = sections.map(([id, label, title, fields]) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.id = `settings-tab-${id}`;
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-controls', `settings-panel-${id}`);
+      tabs.appendChild(button);
+      const panel = this._buildSection(form, title, fields);
+      panel.id = `settings-panel-${id}`;
+      panel.setAttribute('role', 'tabpanel');
+      panel.setAttribute('aria-labelledby', button.id);
+      return { id, button, panel };
+    });
+    const select = id => {
+      this._activeSettingsTab = id;
+      for (const entry of entries) {
+        const active = entry.id === id;
+        entry.button.setAttribute('aria-selected', String(active));
+        entry.button.tabIndex = active ? 0 : -1;
+        entry.panel.hidden = !active;
+      }
+    };
+    entries.forEach(({ id, button }, index) => {
+      button.addEventListener('click', () => select(id));
+      button.addEventListener('keydown', event => {
+        const offset = { ArrowRight: 1, ArrowLeft: -1, Home: -index, End: entries.length - 1 - index }[event.key];
+        if (offset == null) return;
+        event.preventDefault();
+        const next = entries[(index + offset + entries.length) % entries.length];
+        select(next.id);
+        next.button.focus();
+      });
+    });
+    select(this._activeSettingsTab);
   }
 
   _buildSection(form, title, fields) {
@@ -105,6 +152,7 @@ export class CabinetForm {
     }
 
     form.appendChild(section);
+    return section;
   }
 
   _makeField(labelText, input, opts = {}) {
@@ -114,7 +162,7 @@ export class CabinetForm {
     label.textContent = labelText;
     div.appendChild(label);
 
-    if (opts.unit === 'mm') lengthInput(input);
+    if (opts.unit === 'mm' && !input.dataset.holeList) lengthInput(input);
     if (opts.unit) {
       const wrap = document.createElement('div');
       wrap.className = 'input-wrap';
@@ -187,8 +235,10 @@ export class CabinetForm {
       if ((this.config.shelves?.count ?? 0) < 0) this.config.shelves.count = 0;
       if (this.config.shelves?.count == null) this.config.shelves.count = 2;
     } else {
+      const changedConstruction = this.config.construction !== 'frameless';
+      this.config.construction = 'frameless';
       if ((this.config.drawers?.count ?? 0) <= 0) this.config.drawers.count = 3;
-      if ((this.config.drawers?.heights?.length ?? 0) !== this.config.drawers.count) {
+      if (changedConstruction || (this.config.drawers?.heights?.length ?? 0) !== this.config.drawers.count) {
         this._autoDrawerHeights(this.config.drawers.count);
       }
     }
@@ -348,7 +398,7 @@ export class CabinetForm {
   _routedDetailFields(group) {
     const detailStyle = this._createSelect([
       { value: 'none', label: 'Plain (no detail)' },
-      { value: 'slats', label: 'Vertical slats (V-bit)' },
+      { value: 'slats', label: 'Vertical slats' },
       { value: 'rectangle', label: 'Rectangle' },
       { value: 'clipped', label: 'Clipped corners' },
       { value: 'rounded', label: 'Rounded corners' },
@@ -363,6 +413,18 @@ export class CabinetForm {
     const insetField = this._makeField('Detail inset from edges', inset, { unit: 'mm' });
     const sizeField = this._makeField('Corner size / arch rise', size, { unit: 'mm' });
     const spacingField = this._makeField('Slat line spacing (centre to centre)', spacing, { unit: 'mm' });
+    const tool = this._createSelect([
+      { value: 'v-bit', label: 'V-bit' }, { value: 'straight', label: 'Straight bit' },
+      { value: 'annotation', label: 'Reference lines only' },
+    ], { 'data-key': `${group}.detailTool` });
+    tool.value = this.config[group].detailTool || 'v-bit';
+    const depth = this._createInput('number', { 'data-key': `${group}.detailDepth`, value: this.config[group].detailDepth ?? 2, min: 0.1, step: 0.1 });
+    const angle = this._createInput('number', { 'data-key': `${group}.detailAngle`, value: this.config[group].detailAngle ?? 90, min: 10, max: 170, step: 1 });
+    const diameter = this._createInput('number', { 'data-key': `${group}.detailDiameter`, value: this.config[group].detailDiameter ?? 6, min: 0.1, step: 0.1 });
+    const toolField = this._makeField('Routing cutter', tool);
+    const depthField = this._makeField('Routing depth', depth, { unit: 'mm' });
+    const angleField = this._makeField('V-bit included angle', angle, { unit: '°' });
+    const diameterField = this._makeField('Straight bit diameter', diameter, { unit: 'mm' });
     let previousStyle = detailStyle.value;
     const syncDetailFields = () => {
       const style = detailStyle.value;
@@ -373,14 +435,20 @@ export class CabinetForm {
         previousStyle = style;
       }
       if (getUnits() !== 'imperial') inset.min = slats ? '0' : '1';
+      toolField.classList.toggle('hidden', style === 'none');
+      depthField.classList.toggle('hidden', style === 'none' || tool.value === 'annotation');
+      angleField.classList.toggle('hidden', style === 'none' || tool.value !== 'v-bit');
+      diameterField.classList.toggle('hidden', style === 'none' || tool.value !== 'straight');
       insetField.classList.toggle('hidden', style === 'none');
       spacingField.classList.toggle('hidden', !slats);
       sizeField.classList.toggle('hidden', !['clipped', 'rounded', 'inward-rounded', 'arch', 'cathedral'].includes(style));
     };
+    tool.addEventListener('input', syncDetailFields);
+    tool.addEventListener('change', syncDetailFields);
     detailStyle.addEventListener('input', syncDetailFields);
     detailStyle.addEventListener('change', syncDetailFields);
     syncDetailFields();
-    return [this._makeField('Routed detail', detailStyle), insetField, sizeField, spacingField];
+    return [this._makeField('Routed detail', detailStyle), insetField, sizeField, spacingField, toolField, depthField, angleField, diameterField];
   }
 
   _drawerDetailFields() {
@@ -434,8 +502,10 @@ export class CabinetForm {
       { value: 'face-frame', label: 'Face-frame' },
     ], { 'data-key': 'construction' });
     cons.value = this.config.construction;
+    cons.querySelector('option[value="face-frame"]').disabled = this._frontMode() === 'drawers';
     cons.addEventListener('change', () => {
       this.config.construction = cons.value;
+      if (this._frontMode() === 'drawers') this._autoDrawerHeights(this.config.drawers.count);
       this._render();
       this._emitChange();
     });
@@ -472,7 +542,7 @@ export class CabinetForm {
       );
     }
 
-    return fields;
+    return [...fields, ...this._hardwareLibraryFields(['joinery']), ...this._joineryFields(), this._connectorReferences()];
   }
 
   _toeKickFields() {
@@ -485,9 +555,7 @@ export class CabinetForm {
   }
 
   _openingHeight(config = this.config) {
-    const tkH = (config.category === 'base' && config.toeKick) ? config.toeKick.height : 0;
-    const topClr = 3;
-    return config.height - tkH - topClr - topClr;
+    return frontLayout(config).height;
   }
 
   _buildAutoDrawerHeights(config, count) {
@@ -722,10 +790,19 @@ export class CabinetForm {
     ], { 'data-key': 'overlay.type' });
     overlayType.value = this.config.overlay.type;
 
+    overlayType.addEventListener('change', event => {
+      event.stopPropagation();
+      this.config = this.getConfig();
+      if (this.config.overlay.type === 'partial-overlay') this.config.overlay.amount = this.config.materials.caseThickness / 2;
+      this._render(); this._emitChange();
+    });
+    const amount = this._createInput('number', { 'data-key': 'overlay.amount', value: this.config.overlay.amount, min: 0 });
     const reveal = this._createInput('number', { 'data-key': 'reveal', value: this.config.reveal, min: 0, step: 0.5 });
 
     return [
       this._makeField('Overlay type', overlayType),
+      ...(this.config.overlay.type === 'inset' && this._frontMode() !== 'drawers' ? [this._makeBlurb('Inset doors need inset (fully cranked) hinges. Standard overlay hinges are not suitable. Choose inset hinge and plate defaults under Hardware, then verify against your hardware.')] : []),
+      ...(this.config.overlay.type === 'partial-overlay' ? [this._makeField('Overlay on opening edge', amount, { unit: 'mm' })] : []),
       this._makeField('Reveal / gap', reveal, { unit: 'mm' }),
     ];
   }
@@ -740,7 +817,7 @@ export class CabinetForm {
       const category = categoryForKey(input.dataset.key);
       if (category) input.dataset.hardwareCategory = category;
     }
-    return [...this._hardwareLibraryFields(), ...fields, ...this._joineryFields(), this._connectorReferences()];
+    return [...this._hardwareLibraryFields(), ...fields];
   }
 
   _connectorReferences() {
@@ -762,18 +839,25 @@ export class CabinetForm {
     return details;
   }
 
-  _hardwareLibraryFields() {
+  _hardwareLibraryFields(categories = null) {
     const fields = [];
-    const categories = this._frontMode() === 'drawers'
-      ? ['handles', 'runners', 'joinery'] : ['hingeCup', 'hingePlate', 'shelfPins', 'handles', 'joinery'];
+    categories ||= this._frontMode() === 'drawers'
+      ? ['handles', 'runners'] : ['hingeCup', 'hingePlate', 'shelfPins', 'handles'];
     const selected = selectedHardware(this.config);
     for (const category of categories) {
       const presets = HARDWARE_LIBRARY.filter(p => p.category === category);
+      const current = selected.find(p => p.category === category)?.id;
+      const matchingJoint = category === 'joinery' ? presets.find(p => Object.entries(p.values).every(([path, value]) => {
+        const [group, key] = path.split('.');
+        return (this.config[group]?.[key] ?? (key === 'joineryType' ? 'none' : undefined)) === value;
+      })) : null;
+      const jointLabel = { none: 'None', dowel: 'Dowels', dado: 'Dados', 'rastex-18': 'Rastex 15', 'cabineo-8': 'Cabineo 8', 'cabineo-12': 'Cabineo 12', 'pocket-manual': 'Pocket screws' }[this.config.hardware.joineryType] || 'Existing joint';
       const select = this._createSelect([
-        { value: 'custom', label: 'Custom / existing dimensions' },
+        ...(category !== 'joinery' ? [{ value: 'custom', label: 'Custom / existing dimensions' }]
+          : !current && !matchingJoint ? [{ value: 'custom', label: `${jointLabel} — edited dimensions` }] : []),
         ...presets.map(p => ({ value: p.id, label: p.label + (p.status === 'fit' ? ' (fit only)' : '') })),
       ], { 'data-key': `hardware.library.${category}`, 'aria-label': `${HARDWARE_CATEGORIES[category]} library` });
-      select.value = selected.find(p => p.category === category)?.id || 'custom';
+      select.value = current || matchingJoint?.id || 'custom';
       const preset = hardwarePreset(select.value);
       const note = this._makeBlurb(preset?.note || '');
       note.dataset.hardwareNote = category;
@@ -808,6 +892,15 @@ export class CabinetForm {
       const field = this._makeField(HARDWARE_CATEGORIES[category], select);
       field.classList.add('hardware-library-field');
       fields.push(field, note);
+      if (category === 'handles' && preset) fields.push(...this._handlePositionFields());
+      if (category === 'runners' && preset?.lengths) {
+        const current = this.config.hardware.runnerLength;
+        const lengths = preset.lengths.includes(current) ? preset.lengths : [...preset.lengths, current];
+        const length = this._createSelect(lengths.map(value => ({ value: String(value), label: dimension(value) })),
+          { 'data-key': 'hardware.runnerLength', 'data-number': 'true', 'aria-label': 'Slide length' });
+        length.value = String(current);
+        fields.push(this._makeField('Slide length', length));
+      }
     }
     return fields;
   }
@@ -845,6 +938,7 @@ export class CabinetForm {
   }
 
   _doorHardwareFields() {
+    const customHandles = !selectedHardware(this.config).some(p => p.category === 'handles' && p.id);
     const container = document.createElement('div');
     container.className = 'tab-container hardware-tabs';
 
@@ -854,7 +948,8 @@ export class CabinetForm {
     const plateTab = this._makeTabButton('fa-grip', 'Hinge Plate');
     const shelfTab = this._makeTabButton('fa-ellipsis-vertical', 'Shelf Pins');
     const handleTab = this._makeTabButton('fa-grip-lines', 'Handles');
-    tabBar.append(coreTab, plateTab, shelfTab, handleTab);
+    tabBar.append(coreTab, plateTab, shelfTab);
+    if (customHandles) tabBar.append(handleTab);
 
     const coreContent = document.createElement('div');
     coreContent.className = 'tab-content';
@@ -873,8 +968,6 @@ export class CabinetForm {
     const sps = this._createInput('number', { 'data-key': 'hardware.shelfPinSpacing', value: this.config.hardware.shelfPinSpacing, min: 10, step: 1 });
     const spsb = this._createInput('number', { 'data-key': 'hardware.shelfPinSetback', value: this.config.hardware.shelfPinSetback, min: 10, step: 1 });
     const handleSpacing = this._createInput('number', { 'data-key': 'hardware.handleHoleSpacing', value: this.config.hardware.handleHoleSpacing ?? 96, min: 0, step: 1 });
-    const handleEdge = this._createInput('number', { 'data-key': 'hardware.handleEdgeOffset', value: this.config.hardware.handleEdgeOffset ?? 40, min: 0, step: 1 });
-    const doorHandleHeight = this._createInput('number', { 'data-key': 'hardware.doorHandleHeight', value: this.config.hardware.doorHandleHeight ?? 100, min: 0, step: 1 });
 
     coreContent.append(
       this._makeField('Hinge bore diameter', hbd, { unit: 'mm' }),
@@ -886,6 +979,7 @@ export class CabinetForm {
     hpRear.disabled = !secondRow.checked;
     const patterns = {
       'south-africa': { front: 20, rear: 32, spacing: 32, second: true },
+      'blum-inset': { front: 37, rear: 32, spacing: 32, second: false },
       blum: { front: 37, rear: 32, spacing: 32, second: false },
     };
     const hw = this.config.hardware;
@@ -898,9 +992,10 @@ export class CabinetForm {
     const pattern = this._createSelect([
       { value: 'south-africa', label: 'South Africa (2 × 2)' },
       { value: 'blum', label: 'Blum frameless (2 × 1)' },
+      { value: 'blum-inset', label: 'Blum frameless inset (2 × 1)' },
       { value: 'custom', label: 'Other / Custom' },
     ], { 'data-key': 'hardware.hingePlatePattern', 'aria-label': 'Hinge plate pattern' });
-    pattern.value = hw.hingePlatePattern === 'custom' ? 'custom' : (matchingPattern?.[0] || 'custom');
+    pattern.value = hw.hingePlatePattern === 'custom' ? 'custom' : hw.hingePlatePattern === 'blum-inset' ? 'blum-inset' : (matchingPattern?.[0] === 'blum-inset' ? 'blum' : matchingPattern?.[0] || 'custom');
     pattern.addEventListener('change', () => {
       const preset = patterns[pattern.value];
       if (!preset) return;
@@ -918,7 +1013,7 @@ export class CabinetForm {
       markCustom();
     });
     plateContent.append(
-      this._makeBlurb('Two holes per row. Blum frameless 37/32 uses one row, 37 mm from the front, with 32 mm vertical spacing. Verify your plate; face-frame and other plates differ.'),
+      this._makeBlurb('Two holes per row. Blum frameless 37/32 uses one row, 37 mm from the front, with 32 mm vertical spacing. Inset adds door thickness + 1.5 mm to the front offset automatically. Verify your plate; face-frame and other plates differ.'),
       this._makeField('Hinge plate pattern', pattern),
       this._makeField('Include second row (four holes per plate)', secondRow),
       this._makeField('Hinge plate front hole offset', hpFront, { unit: 'mm' }),
@@ -934,11 +1029,10 @@ export class CabinetForm {
       this._hardwareDimension('Shelf pin diameter', 'hardware.shelfPinDiameter', 5, 'shelfPins'),
       this._hardwareDimension('Shelf pin bore depth', 'hardware.shelfPinDepth', 10, 'shelfPins'),
     );
-    handleContent.append(
+    if (customHandles) handleContent.append(
       ...this._handleTypeFields(),
       this._makeField('Handle hole spacing', handleSpacing, { unit: 'mm' }),
-      this._makeField('Door handle edge offset', handleEdge, { unit: 'mm' }),
-      this._makeField('Door handle centre height from bottom', doorHandleHeight, { unit: 'mm' }),
+      ...this._handlePositionFields(),
     );
 
     const switchTab = (active) => {
@@ -965,6 +1059,8 @@ export class CabinetForm {
   }
 
   _drawerHardwareFields() {
+    const customHandles = !selectedHardware(this.config).some(p => p.category === 'handles' && p.id);
+    const customRunners = !selectedHardware(this.config).some(p => p.category === 'runners' && p.id);
     const container = document.createElement('div');
     container.className = 'tab-container hardware-tabs';
 
@@ -972,7 +1068,8 @@ export class CabinetForm {
     tabBar.className = 'tab-bar';
     const handleTab = this._makeTabButton('fa-grip-lines', 'Handles', true);
     const runnerTab = this._makeTabButton('fa-arrows-left-right', 'Runners');
-    tabBar.append(handleTab, runnerTab);
+    if (customHandles) tabBar.append(handleTab);
+    if (customRunners) tabBar.append(runnerTab);
 
     const handleContent = document.createElement('div');
     handleContent.className = 'tab-content';
@@ -980,39 +1077,77 @@ export class CabinetForm {
     runnerContent.className = 'tab-content hidden';
 
     const handleSpacing = this._createInput('number', { 'data-key': 'hardware.handleHoleSpacing', value: this.config.hardware.handleHoleSpacing ?? 96, min: 0, step: 1 });
-    const drawerHandleTop = this._createInput('number', { 'data-key': 'hardware.drawerHandleTopOffset', value: this.config.hardware.drawerHandleTopOffset ?? 50, min: 0, step: 1 });
     const sideClearance = this._createInput('number', { 'data-key': 'drawers.sideClearance', value: this.config.drawers.sideClearance ?? 10, min: 0, step: 1 });
 
-    handleContent.append(
+    if (customHandles) handleContent.append(
       ...this._handleTypeFields(),
       this._makeField('Handle hole spacing', handleSpacing, { unit: 'mm' }),
-      this._makeField('Drawer handle centre offset down from top', drawerHandleTop, { unit: 'mm' }),
+      ...this._handlePositionFields(),
     );
-    runnerContent.append(
-      this._makeField('Drawer runner clearance per side', sideClearance, { unit: 'mm' }),
-    );
-    if (this.config.hardware.runnerMode === 'side-mount') {
-      const preset = hardwarePreset('runner-3832e');
-      const length = this._createSelect(preset.lengths.map(mm => ({ value: mm, label: dimension(mm) })), { 'data-key': 'hardware.runnerLength', 'aria-label': 'Runner length' });
-      length.dataset.number = 'true';
-      length.value = String(this.config.hardware.runnerLength);
-      runnerContent.append(this._makeField('Runner length', length), this._makeBlurb('Fit only. Mounting holes use the manufacturer drawing or jig.'));
+    if (customRunners) {
+      runnerContent.append(
+        this._makeField('Drawer runner clearance per side', sideClearance, { unit: 'mm' }),
+      );
+      if (this.config.hardware.runnerMode === 'side-mount') {
+        const hw = this.config.hardware;
+        const length = this._createInput('number', { 'data-key': 'hardware.runnerLength', value: hw.runnerLength || 500, min: 1 });
+        const pattern = this._createSelect([{ value: 'accuride-3832e', label: 'Accuride 3832E pilot centres' }, { value: 'custom', label: 'Custom mounting dimensions' }], { 'data-key': 'hardware.runnerPattern' });
+        pattern.value = hw.runnerPattern || 'accuride-3832e';
+        pattern.addEventListener('change', event => {
+          event.stopPropagation();
+          const points = runnerPattern(hw.runnerLength || 500);
+          this.config = this.getConfig();
+          if (points && this.config.hardware.runnerPattern === 'custom') {
+            this.config.hardware.runnerCabinetHoles ||= points.cabinet;
+            this.config.hardware.runnerDrawerHoles ||= points.drawer;
+          }
+          this._render(); this._emitChange();
+        });
+        const settings = runnerSettings(this.config);
+        runnerContent.append(this._makeField('Slide length', length, { unit: 'mm' }), this._makeField('Mounting pattern', pattern));
+        for (const [key, label, value] of [
+          ['runnerPilotDiameter', 'Pilot diameter', settings.diameter],
+          ['runnerPilotDepth', 'Pilot depth', settings.depth],
+          ['runnerHoleHeight', 'Hole row above drawer-box bottom', settings.height],
+          ['runnerSetback', 'Cabinet slide setback from carcass front', settings.setback],
+        ]) {
+          const input = this._createInput('number', { 'data-key': `hardware.${key}`, value, min: 0, step: 0.1 });
+          if (key === 'runnerSetback' && hw.runnerSetback == null) {
+            input.dataset.unset = 'true';
+            input.addEventListener('input', () => delete input.dataset.unset);
+          }
+          runnerContent.append(this._makeField(label, input, { unit: 'mm' }));
+        }
+        if (hw.runnerPattern === 'custom') for (const [key, label] of [['runnerCabinetHoles', 'Cabinet centres from slide front'], ['runnerDrawerHoles', 'Drawer centres from box front']]) {
+          const input = this._createInput('text', { 'data-key': `hardware.${key}`, value: (hw[key] || []).map(formatLength).join(', ') });
+          input.dataset.holeList = 'true';
+          runnerContent.append(this._makeField(label, input, { unit: 'mm' }));
+        }
+        runnerContent.append(this._makeBlurb('To customise: select Custom mounting dimensions, then enter comma-separated hole centres in the current units. Clearance controls box width; slide length controls box depth. Pilot centres locate screws in slots; verify against your slide before drilling.'));
+        const drawing = document.createElement('a');
+        drawing.href = hardwarePreset('runner-3832e').source;
+        drawing.target = '_blank'; drawing.rel = 'noopener'; drawing.textContent = 'Accuride mounting drawing';
+        runnerContent.append(drawing);
+      }
+      const runnerMode = this._createSelect([
+        { value: 'reference', label: 'Custom clearance / reference holes' },
+        { value: 'side-mount', label: 'Side mount / length + mounting pilots' },
+      ], { 'data-key': 'hardware.runnerMode', 'aria-label': 'Runner output' });
+      runnerMode.value = this.config.hardware.runnerMode || 'reference';
+      runnerMode.addEventListener('change', e => {
+        e.stopPropagation();
+        this.config = this.getConfig();
+        this.config.hardware.library = { ...this.config.hardware.library, runners: 'custom' };
+        this.config.hardware.runnerLength ||= 500;
+        this._render(); this._emitChange();
+      });
+      runnerContent.prepend(this._makeField('Runner output', runnerMode));
     }
-    const runnerMode = this._createSelect([
-      { value: 'reference', label: 'Custom clearance / reference holes' },
-      { value: 'side-mount', label: 'Side mount / selected length (no mounting holes)' },
-    ], { 'data-key': 'hardware.runnerMode', 'aria-label': 'Runner output' });
-    runnerMode.value = this.config.hardware.runnerMode || 'reference';
-    runnerMode.addEventListener('change', e => {
-      e.stopPropagation();
-      this.config = this.getConfig();
-      this.config.hardware.library = { ...this.config.hardware.library, runners: 'custom' };
-      this.config.hardware.runnerLength ||= 500;
-      this._render(); this._emitChange();
-    });
-    runnerContent.prepend(this._makeField('Runner output', runnerMode));
 
     const switchTab = (active) => {
+      if (!customHandles) active = 'runner';
+      if (!customRunners) active = 'handle';
+      this._drawerHardwareTab = active;
       handleTab.classList.toggle('active', active === 'handle');
       runnerTab.classList.toggle('active', active === 'runner');
       handleContent.classList.toggle('hidden', active !== 'handle');
@@ -1022,9 +1157,29 @@ export class CabinetForm {
     handleTab.addEventListener('click', () => switchTab('handle'));
     runnerTab.addEventListener('click', () => switchTab('runner'));
 
+    switchTab(this._drawerHardwareTab || 'handle');
     container.append(tabBar, handleContent, runnerContent);
 
-    return [container];
+    return customHandles || customRunners ? [container] : [];
+  }
+
+  _handlePositionFields() {
+    if (this.config.hardware.handleType === 'none') return [];
+    if (this._frontMode() === 'doors') return [
+      this._hardwareDimension('Door handle edge offset', 'hardware.handleEdgeOffset', 40),
+      this._hardwareDimension('Door handle centre height from bottom', 'hardware.doorHandleHeight', 100),
+    ];
+    const position = this._createSelect([{ value: 'top-offset', label: 'Offset from top' }, { value: 'center', label: 'Vertically centred' }], { 'data-key': 'hardware.drawerHandlePosition' });
+    position.value = this.config.hardware.drawerHandlePosition || 'top-offset';
+    const top = this._createInput('number', { 'data-key': 'hardware.drawerHandleTopOffset', value: this.config.hardware.drawerHandleTopOffset ?? 50, min: 0, step: 1 });
+    const offsetField = this._makeField('Drawer handle centre offset down from top', top, { unit: 'mm' });
+    const updateOffset = () => {
+      offsetField.hidden = position.value === 'center';
+      top.disabled = offsetField.hidden;
+    };
+    updateOffset();
+    position.addEventListener('change', updateOffset);
+    return [this._makeField('Drawer pull position', position), offsetField];
   }
 
   _makeTabButton(iconClass, label, active = false) {
@@ -1069,7 +1224,9 @@ export class CabinetForm {
       const key = input.getAttribute('data-key');
       const parts = key.split('.');
       let val;
-      if (input.type === 'checkbox') {
+      if (input.dataset.holeList) {
+        val = input.value.split(',').map(value => parseLength(value));
+      } else if (input.type === 'checkbox') {
         val = input.checked;
       } else if (input.dataset.length) {
         val = readLength(input);

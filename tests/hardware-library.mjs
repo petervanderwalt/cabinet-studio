@@ -119,3 +119,20 @@ framed.construction = 'face-frame';
 assert.ok(validateCabinet(framed).some(w => w.includes('frameless carcass')));
 assert.equal(computePanels(framed).flatMap(p => p.holes).filter(h => h.purpose === 'hinge-mounting-plate').length, 0);
 console.log('PASS: unique mating joint IDs across cabinet copies and unsupported face-frame plate guard');
+
+const insetHinge = applyHardwarePreset(base, 'cup-blum-inset');
+insetHinge.overlay.type = 'inset';
+const insetPlate = applyHardwarePreset(insetHinge, 'plate-blum-inset');
+assert.ok(validateCabinet(insetPlate).some(w => w.includes('standard overlay hinges')));
+for (const thickness of [18, 22]) {
+  insetPlate.materials.doorThickness = thickness;
+  const sides = computePanels(insetPlate).filter(p => p.id.startsWith('side-'));
+  for (const side of sides) {
+    const expected = 38.5 + thickness;
+    assert.ok(side.holes.filter(h => h.purpose === 'hinge-mounting-plate').every(h => Math.abs(h.x - (side.id === 'side-right' ? side.cutWidth - expected : expected)) < 1e-8));
+    assert.equal(side.holes.filter(h => h.purpose === 'hinge-mounting-plate').length, 4);
+  }
+}
+insetPlate.construction = 'face-frame';
+assert.equal(computePanels(insetPlate).flatMap(p => p.holes).filter(h => h.purpose === 'hinge-mounting-plate').length, 0);
+assert.ok(validateCabinet(insetPlate).some(w => w.includes('requires a frameless')));

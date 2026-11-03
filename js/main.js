@@ -1,10 +1,11 @@
+import { downloadCabinetStep } from './step-writer.js?v=20261103s';
 import { initTabletViews } from './tablet-ui.js?v=20261102a';
 import { dimension, formatLength, getUnits, lengthInput, readLength, stockDimension, unitLabel } from './units.js?v=20261020h';
 // main.js - Application entry point
-import { CabinetViewport } from './three-viewport.js?v=20261102b';
-import { CabinetForm } from './form-ui.js?v=20261022e';
-import { computePanels } from './cabinet-math.js?v=20261022e';
-import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261022e';
+import { CabinetViewport } from './three-viewport.js?v=20261103z';
+import { CabinetForm } from './form-ui.js?v=20261103ad';
+import { computePanels } from './cabinet-math.js?v=20261103m';
+import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261103c';
 import { buildNestingPlan } from './nesting.js?v=20261022e';
 import { applyGlobalMaterialSelections, STOCK_FIELDS, sharedStockChoices, splitStockAppearance } from './material-presets.js?v=20261020f';
 import {
@@ -18,7 +19,7 @@ import {
   setActiveCabinet,
   updateActiveCabinetConfig,
   updateCabinetMeta,
-} from './project-io.js?v=20261022e';
+} from './project-io.js?v=20261103c';
 
 let viewport = null;
 let form = null;
@@ -28,6 +29,7 @@ let currentConfig = null;
 let currentNestingPlan = null;
 let currentProject = null;
 let reviewReturnFocus = null;
+let reviewPanelId = null;
 let projectTabMenuCabinetId = null;
 let renamingCabinetId = null;
 const LAYOUT_SEED_KEY = 'cabinet-studio-layout-seed';
@@ -39,10 +41,21 @@ function init() {
 
   viewport = new CabinetViewport(viewportContainer, selectPanelPreview);
   initResultsTabs();
+  document.getElementById('export-step-btn').addEventListener('click', async event => {
+    if (!currentPanels.length) return;
+    const button = event.currentTarget;
+    button.disabled = true; button.textContent = 'Preparing STEP…';
+    try { await downloadCabinetStep(currentPanels, getActiveCabinet(currentProject).name); }
+    catch (error) { alert(`STEP export failed: ${error.message}`); }
+    finally { button.disabled = false; button.textContent = 'Export STEP'; }
+  });
   initSheetModal();
   initProjectControls();
   initProjectTabMenu();
 
+  document.getElementById('exploded-view-toggle')?.addEventListener('change', event => {
+    viewport.setExploded(event.target.checked);
+  });
   const showEdgesToggle = document.getElementById('show-edges-toggle');
   if (showEdgesToggle) {
     viewport.setShowEdges(showEdgesToggle.checked);
@@ -202,7 +215,6 @@ function initProjectControls() {
 
 function renderProjectTabs() {
   const tabList = document.getElementById('project-cabinet-tabs');
-  const meta = document.getElementById('project-cabinet-meta');
   const copiesInput = document.getElementById('project-copies-input');
   if (!tabList || !currentProject) return;
 
@@ -227,12 +239,15 @@ function renderProjectTabs() {
           : `<span class="project-tab-name">${escapeHtml(cabinet.name)}</span>`
         }
       </button>
+      <button type="button" class="project-tab-menu-button"
+        data-cabinet-menu="${escapeHtml(cabinet.id)}"
+        aria-label="Actions for ${escapeHtml(cabinet.name)}" aria-controls="project-tab-menu" aria-expanded="false"
+        title="Cabinet actions">
+        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+      </button>
     </div>
   `).join('');
 
-  if (meta) {
-    meta.textContent = `${currentProject.cabinets.length} ${currentProject.cabinets.length === 1 ? 'cabinet' : 'cabinets'} in project`;
-  }
   if (copiesInput) {
     copiesInput.value = String(activeCabinet.qty || 1);
   }
@@ -248,6 +263,17 @@ function renderProjectTabs() {
     tab.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       openProjectTabMenu(cabinetId, event.clientX, event.clientY);
+    });
+  }
+
+  for (const button of tabList.querySelectorAll('[data-cabinet-menu]')) {
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      const cabinetId = button.getAttribute('data-cabinet-menu');
+      if (projectTabMenuCabinetId === cabinetId) { closeProjectTabMenu();return; }
+      const rect = button.getBoundingClientRect();
+      openProjectTabMenu(cabinetId, rect.left, rect.bottom + 4);
+      document.querySelector('#project-tab-menu button:not(:disabled)')?.focus();
     });
   }
 
@@ -303,6 +329,12 @@ function initProjectTabMenu() {
     }
   });
 
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && projectTabMenuCabinetId) {
+      const trigger = [...document.querySelectorAll('[data-cabinet-menu]')].find(button => button.getAttribute('data-cabinet-menu') === projectTabMenuCabinetId);
+      closeProjectTabMenu();trigger?.focus();
+    }
+  });
   window.addEventListener('blur', closeProjectTabMenu);
   window.addEventListener('resize', closeProjectTabMenu);
 
@@ -343,10 +375,13 @@ function openProjectTabMenu(cabinetId, x, y) {
   projectTabMenuCabinetId = cabinetId;
   const deleteBtn = menu.querySelector('[data-project-action="delete"]');
   if (deleteBtn) deleteBtn.disabled = currentProject.cabinets.length <= 1;
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
   menu.classList.remove('hidden');
+  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
   menu.setAttribute('aria-hidden', 'false');
+  for (const button of document.querySelectorAll('[data-cabinet-menu]')) {
+    button.setAttribute('aria-expanded', String(button.getAttribute('data-cabinet-menu') === cabinetId));
+  }
 }
 
 function closeProjectTabMenu() {
@@ -355,6 +390,7 @@ function closeProjectTabMenu() {
   menu.classList.add('hidden');
   menu.setAttribute('aria-hidden', 'true');
   projectTabMenuCabinetId = null;
+  for (const button of document.querySelectorAll('[data-cabinet-menu]')) button.setAttribute('aria-expanded', 'false');
 }
 
 function initSheetModal() {
@@ -363,6 +399,9 @@ function initSheetModal() {
   if (!modal || !closeBtn) return;
 
   closeBtn.addEventListener('click', closeSheetModal);
+  for (const button of modal.querySelectorAll('[data-review-panel-nav]')) {
+    button.addEventListener('click', () => movePanelReview(Number(button.dataset.reviewPanelNav)));
+  }
   modal.addEventListener('click', (event) => {
     if (event.target === modal) closeSheetModal();
   });
@@ -370,9 +409,15 @@ function initSheetModal() {
     if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
       closeSheetModal();
     }
-    if (event.key === 'Tab' && !modal.classList.contains('hidden')) {
+    if (!modal.classList.contains('hidden') && reviewPanelId && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
       event.preventDefault();
-      closeBtn.focus();
+      movePanelReview(event.key === 'ArrowLeft' ? -1 : 1);
+    }
+    if (event.key === 'Tab' && !modal.classList.contains('hidden')) {
+      const buttons = [...modal.querySelectorAll('button')].filter(button => !button.hidden);
+      const index = buttons.indexOf(document.activeElement);
+      event.preventDefault();
+      buttons[(index + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus();
     }
   });
 }
@@ -469,8 +514,7 @@ function updatePanelList(panels) {
     preview.className = 'panel-row-preview';
     preview.setAttribute('aria-label', `Enlarge ${panel.name} preview`);
     preview.innerHTML = buildPanelPreviewSvg(panel);
-    preview.addEventListener('click', () => openReviewModal(panel.name,
-      `${formatLength(panel.cutWidth)} x ${formatLength(panel.cutHeight)} x ${dimension(panel.cutThickness)} · ${panel.materialLabel || 'Panel'} · ${(panel.holes || []).length} face holes · ${(panel.edgeBores || []).length} edge bores (separate setup)`, buildPanelPreviewSvg(panel)));
+    preview.addEventListener('click', () => openPanelReview(panel));
 
     row.append(main, preview);
     list.appendChild(row);
@@ -522,28 +566,29 @@ function buildNestingWarning(plan) {
   return marginWarning + `<div class="warn">Some parts could not be nested: ${escapeHtml(message)}</div>`;
 }
 
+let nestingSettingsTab = 'stock';
+let openStockType = 'carcass';
+
 function buildNestingControls(config) {
   const materials = config?.materials || {};
   const nesting = config?.nesting || {};
   return `
     <section class="nesting-controls-card">
-      <div class="nesting-controls-head">
-        <h4>Global Stock Setup</h4>
+      <div class="nesting-setup-tabs" role="tablist" aria-label="Nesting settings">
+        <button type="button" role="tab" id="nesting-tab-stock" aria-controls="nesting-stock-panel" aria-selected="${nestingSettingsTab === 'stock'}" data-nesting-tab="stock">Stock</button>
+        <button type="button" role="tab" id="nesting-tab-sheet" aria-controls="nesting-sheet-panel" aria-selected="${nestingSettingsTab === 'sheet'}" data-nesting-tab="sheet">Sheet setup</button>
       </div>
-      <div class="nesting-controls-grid">
-        ${buildStockSelect('Carcass Stock', 'carcass', materials.caseMaterial, materials.caseThickness)}
-        ${buildStockSelect('Rear Stock', 'rear', materials.backMaterial, materials.backThickness)}
-        ${buildStockSelect('Front Stock', 'front', materials.frontMaterial || materials.doorMaterial, materials.doorThickness)}
-        ${buildStockSelect('Drawer Side / Back Stock', 'drawer-side', materials.drawerSideMaterial, materials.drawerSideThickness)}
-        ${buildStockSelect('Drawer Bottom Stock', 'drawer-bottom', materials.drawerBottomMaterial, materials.drawerBottomThickness)}
+      <div class="nesting-controls-grid" id="nesting-stock-panel" role="tabpanel" aria-labelledby="nesting-tab-stock"${nestingSettingsTab !== 'stock' ? ' hidden' : ''}>
+        ${buildStockSelect('Case stock', 'carcass', materials.caseMaterial, materials.caseThickness)}
+        ${buildStockSelect('Rear stock', 'rear', materials.backMaterial, materials.backThickness)}
+        ${buildStockSelect('Front stock', 'front', materials.frontMaterial || materials.doorMaterial, materials.doorThickness)}
+        ${buildStockSelect('Drawer sides / back', 'drawer-side', materials.drawerSideMaterial, materials.drawerSideThickness)}
+        ${buildStockSelect('Drawer bottom', 'drawer-bottom', materials.drawerBottomMaterial, materials.drawerBottomThickness)}
       </div>
-      <div class="nesting-controls-head">
-        <h4>Nesting Settings</h4>
-      </div>
-      <div class="nesting-controls-grid nesting-settings-grid">
+      <div class="nesting-controls-grid nesting-settings-grid" id="nesting-sheet-panel" role="tabpanel" aria-labelledby="nesting-tab-sheet"${nestingSettingsTab !== 'sheet' ? ' hidden' : ''}>
         ${buildNestingNumberField('Sheet length', 'sheetWidth', nesting.sheetWidth ?? 2440, 'mm', 100, 1)}
         ${buildNestingNumberField('Sheet width', 'sheetHeight', nesting.sheetHeight ?? 1220, 'mm', 100, 1)}
-        ${buildNestingNumberField('Nesting gap', 'gap', nesting.gap ?? 20, 'mm', 0, 0.1)}
+        ${buildNestingNumberField('Part gap', 'gap', nesting.gap ?? 20, 'mm', 0, 0.1)}
         ${buildNestingCheckboxField('Allow part rotation', 'allowRotation', nesting.allowRotation !== false)}
       </div>
     </section>
@@ -561,8 +606,8 @@ function buildStockSelect(label, stockType, currentValue, currentThickness) {
   const selectedThickness = choices.thicknesses.find(t => Math.abs(t.thickness - currentThickness) < 1e-8);
   const thicknessOptions = ['metric', 'imperial'].map(units => `<optgroup label="${units === 'metric' ? 'Metric' : 'Imperial'}">${choices.thicknesses.filter(t=>t.units===units).map(t=>`<option value="${t.value}"${t===selectedThickness ? ' selected' : ''}>${t.label}</option>`).join('')}</optgroup>`).join('');
   const existing = selectedThickness ? '' : `<optgroup label="Existing thickness"><option value="existing" selected>${escapeHtml(dimension(currentThickness))}</option></optgroup>`;
-  return `<div class="nesting-stock-group" data-stock-type="${stockType}">
-    <strong>${escapeHtml(label)}</strong>
+  return `<details class="nesting-stock-group" data-stock-type="${stockType}"${openStockType === stockType ? ' open' : ''}>
+    <summary><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(material)} · ${escapeHtml(colour)} · ${escapeHtml(dimension(currentThickness))}</small></span><i class="fa-solid fa-plus" aria-hidden="true"></i></summary>
     <div class="nesting-stock-pair">
       <label class="nesting-stock-field"><span>Material</span>
         <select data-stock-material aria-label="${escapeHtml(label)} material">${names.map(name=>`<option value="${escapeHtml(name)}"${name===material ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select>
@@ -574,7 +619,7 @@ function buildStockSelect(label, stockType, currentValue, currentThickness) {
         <select data-stock-thickness aria-label="${escapeHtml(label)} thickness">${thicknessOptions}${existing}</select>
       </label>
     </div>
-  </div>`;
+  </details>`;
 }
 
 function buildNestingNumberField(label, nestingKey, value, unit, min, step) {
@@ -605,7 +650,21 @@ function buildNestingCheckboxField(label, nestingKey, checked) {
 }
 
 function bindNestingViewEvents(root, plan) {
+  for (const button of root.querySelectorAll('[data-nesting-tab]')) {
+    button.addEventListener('click', () => {
+      nestingSettingsTab = button.dataset.nestingTab;
+      for (const tab of root.querySelectorAll('[data-nesting-tab]')) tab.setAttribute('aria-selected', String(tab === button));
+      root.querySelector('#nesting-stock-panel').hidden = nestingSettingsTab !== 'stock';
+      root.querySelector('#nesting-sheet-panel').hidden = nestingSettingsTab !== 'sheet';
+    });
+  }
   for (const group of root.querySelectorAll('[data-stock-type]')) {
+    group.addEventListener('toggle', () => {
+      if (group.open) {
+        openStockType = group.dataset.stockType;
+        for (const other of root.querySelectorAll('[data-stock-type]')) if (other !== group) other.open = false;
+      } else if (openStockType === group.dataset.stockType) openStockType = null;
+    });
     const commit = () => {
       const type = group.dataset.stockType;
       const choices = sharedStockChoices(currentProject.cabinets.map(c=>c.config.materials));
@@ -719,48 +778,48 @@ function buildSheetSvg(sheet, options) {
     const details = buildPlacementDetailSvg(placement, width);
     const grooves = (panel.grooves || []).map(g => {
       const r = transformPlacementFeatureRect(placement,g);
-      return `<rect x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" fill="none" stroke="#3a6df0" stroke-width="${Math.max(1,width/1000)}" />`;
+      return `<rect x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" fill="none" stroke="#555555" stroke-width="${Math.max(1,width/1000)}" />`;
     }).join('');
     const holes = (panel.holes || []).map(h => {
       const x = placement.x + (placement.rotated ? panel.cutHeight-h.y : h.x);
       const y = placement.y + (placement.rotated ? h.x : h.y);
-      return `<circle cx="${x}" cy="${y}" r="${h.diameter/2}" fill="none" stroke="#2f7d78" stroke-width="${Math.max(1,width/1200)}" />`;
+      return `<circle cx="${x}" cy="${y}" r="${h.diameter/2}" fill="none" stroke="#444444" stroke-width="${Math.max(1,width/1200)}" />`;
     }).join('');
 
     return `
       <g>
         ${gap > 0 ? `<rect x="${gapX}" y="${gapY}" width="${gapWidth}" height="${gapHeight}" fill="rgba(255, 196, 82, 0.14)" stroke="rgba(214, 144, 24, 0.35)" stroke-dasharray="${Math.max(5, width / 180)} ${Math.max(3, width / 260)}" stroke-width="${Math.max(1, width / 1100)}" />` : ''}
-        <rect x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" fill="#f5f7fb" stroke="#71819a" stroke-width="${Math.max(1.5, width / 500)}" />
+        <rect x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" fill="#f5f5f5" stroke="#888888" stroke-width="${Math.max(1.5, width / 500)}" />
         ${notchCutouts}
         ${details}
         ${grooves}
         ${holes}
         <g transform="translate(${cx} ${cy}) scale(1 -1) rotate(${textAngle})">
-          <text x="0" y="${labelSize * 0.2}" text-anchor="middle" font-size="${labelSize}" font-weight="700" fill="#243247">${escapeHtml(`${index + 1}. ${panel.name}`)}</text>
-          <text x="0" y="${labelSize * 1.2}" text-anchor="middle" font-size="${labelSize * 0.75}" fill="#5d6d85">${escapeHtml(dims)}</text>
+          <text x="0" y="${labelSize * 0.2}" text-anchor="middle" font-size="${labelSize}" font-weight="700" fill="#333333">${escapeHtml(`${index + 1}. ${panel.name}`)}</text>
+          <text x="0" y="${labelSize * 1.2}" text-anchor="middle" font-size="${labelSize * 0.75}" fill="#686868">${escapeHtml(dims)}</text>
         </g>
       </g>
     `;
   }).join('');
 
   const offcuts = sheet.freeRects.map((rect) => `
-    <rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}" fill="rgba(111, 141, 189, 0.06)" stroke="rgba(111, 141, 189, 0.18)" stroke-dasharray="${Math.max(6, width / 120)} ${Math.max(4, width / 180)}" stroke-width="${Math.max(1, width / 900)}" />
+    <rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}" fill="rgba(140, 140, 140, 0.06)" stroke="rgba(140, 140, 140, 0.18)" stroke-dasharray="${Math.max(6, width / 120)} ${Math.max(4, width / 180)}" stroke-width="${Math.max(1, width / 900)}" />
   `).join('');
 
   return `
     <svg class="nesting-sheet-svg" viewBox="${viewBox}" role="img" aria-label="Nested layout for sheet ${sheet.index + 1}">
       <g transform="translate(0 ${height}) scale(1 -1)">
-        <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff" stroke="#7b8aa3" stroke-width="${Math.max(2, width / 360)}" />
+        <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff" stroke="#888888" stroke-width="${Math.max(2, width / 360)}" />
         ${offcuts}
         ${placements}
         ${gap > 0 ? `
           <g transform="translate(${width - pad * 0.15} ${height - pad * 0.25}) scale(1 -1)">
-            <text x="0" y="0" text-anchor="end" font-size="${labelSize * 0.7}" fill="#5d6d85">Gap ${escapeHtml(dimension(gap))}</text>
+            <text x="0" y="0" text-anchor="end" font-size="${labelSize * 0.7}" fill="#686868">Gap ${escapeHtml(dimension(gap))}</text>
           </g>
         ` : ''}
       </g>
-      <text x="${width / 2}" y="${-pad * 0.18}" text-anchor="middle" font-size="${labelSize * 0.72}" fill="#5d6d85">${dimension(width)}</text>
-      <text x="${-pad * 0.35}" y="${height / 2}" text-anchor="middle" font-size="${labelSize * 0.72}" fill="#5d6d85" transform="rotate(-90 ${-pad * 0.35} ${height / 2})">${dimension(height)}</text>
+      <text x="${width / 2}" y="${-pad * 0.18}" text-anchor="middle" font-size="${labelSize * 0.72}" fill="#686868">${dimension(width)}</text>
+      <text x="${-pad * 0.35}" y="${height / 2}" text-anchor="middle" font-size="${labelSize * 0.72}" fill="#686868" transform="rotate(-90 ${-pad * 0.35} ${height / 2})">${dimension(height)}</text>
     </svg>
   `;
 }
@@ -772,7 +831,7 @@ function buildPlacementDetailSvg(placement, sheetWidth) {
     return `${x},${y}`;
   }).join(' ');
   return (placement.panel?.detailPaths || []).map(path => (
-    `<${placement.panel.detailPathsClosed === false ? 'polyline' : 'polygon'} points="${pointsForSheet(path)}" fill="none" stroke="#655044" stroke-width="${Math.max(2, sheetWidth / 700)}" stroke-linejoin="round" />`
+    `<${placement.panel.detailPathsClosed === false ? 'polyline' : 'polygon'} points="${pointsForSheet(path)}" fill="none" stroke="#666666" stroke-width="${Math.max(2, sheetWidth / 700)}" stroke-linejoin="round" />`
   )).join('');
 }
 
@@ -790,7 +849,7 @@ function buildPlacementNotchSvg(placement, sheetWidth) {
         width="${rect.width}"
         height="${rect.height}"
         fill="#ffffff"
-        stroke="#71819a"
+        stroke="#888888"
         stroke-width="${strokeWidth}"
       />
     `;
@@ -816,6 +875,19 @@ function transformPlacementFeatureRect(placement, rect) {
   };
 }
 
+function openPanelReview(panel) {
+  openReviewModal(panel.name,
+    `${formatLength(panel.cutWidth)} x ${formatLength(panel.cutHeight)} x ${dimension(panel.cutThickness)} · ${panel.materialLabel || 'Panel'} · ${(panel.holes || []).length} face holes · ${(panel.edgeBores || []).length} edge bores (separate setup)`, buildPanelPreviewSvg(panel));
+  reviewPanelId = panel.id;
+  for (const button of document.querySelectorAll('[data-review-panel-nav]')) button.hidden = currentPanels.length < 2;
+}
+
+function movePanelReview(direction) {
+  const index = currentPanels.findIndex(panel => panel.id === reviewPanelId);
+  if (index < 0 || currentPanels.length < 2) return;
+  openPanelReview(currentPanels[(index + direction + currentPanels.length) % currentPanels.length]);
+}
+
 function openSheetModal(sheet, options) {
   openReviewModal(`Sheet ${sheet.index + 1}`,
     `${sheet.materialLabel || 'Sheet Stock'} · ${stockDimension(sheet)} · ${formatLength(sheet.sheetWidth)} x ${dimension(sheet.sheetHeight)} · ${sheet.placements.length} parts`, buildSheetSvg(sheet, options));
@@ -828,13 +900,16 @@ function openReviewModal(heading, description, svg) {
   const body = document.getElementById('sheet-zoom-body');
   if (!modal || !title || !meta || !body) return;
 
-  reviewReturnFocus = document.activeElement;
+  const opening = modal.classList.contains('hidden');
+  if (opening) reviewReturnFocus = document.activeElement;
+  reviewPanelId = null;
+  for (const button of modal.querySelectorAll('[data-review-panel-nav]')) button.hidden = true;
   title.textContent = heading;
   meta.textContent = description;
   body.innerHTML = svg;
   modal.classList.remove('hidden');
   modal.setAttribute('aria-hidden', 'false');
-  document.getElementById('sheet-zoom-close')?.focus();
+  if (opening) document.getElementById('sheet-zoom-close')?.focus();
 }
 
 function closeSheetModal() {
@@ -844,6 +919,7 @@ function closeSheetModal() {
   modal.classList.add('hidden');
   modal.setAttribute('aria-hidden', 'true');
   body.innerHTML = '';
+  reviewPanelId = null;
   reviewReturnFocus?.focus({ preventScroll: true });
 }
 
@@ -862,26 +938,26 @@ function buildPanelPreviewSvg(panel) {
   const strokeWidth = Math.max(1, Math.max(width, height) / 280);
   const holes = (panel.holes || []).map(hole => {
     const r = Math.max(1.5, (hole.diameter || 5) / 2);
-    return `<circle cx="${hole.x}" cy="${hole.y}" r="${r}" fill="none" stroke="#2f7d78" stroke-width="${strokeWidth}" />`;
+    return `<circle cx="${hole.x}" cy="${hole.y}" r="${r}" fill="none" stroke="#444444" stroke-width="${strokeWidth}" />`;
   }).join('');
   const notches = (panel.notches || []).map(notch => (
-    `<rect x="${notch.x}" y="${notch.y}" width="${notch.width}" height="${notch.height}" fill="#f9fbff" stroke="#d18a68" stroke-width="${strokeWidth}" />`
+    `<rect x="${notch.x}" y="${notch.y}" width="${notch.width}" height="${notch.height}" fill="#fafafa" stroke="#777777" stroke-width="${strokeWidth}" />`
   )).join('');
   const grooves = (panel.grooves || []).map(groove => (
-    `<rect x="${groove.x}" y="${groove.y}" width="${groove.width}" height="${groove.height}" fill="none" stroke="#3a6df0" stroke-width="${strokeWidth}" stroke-dasharray="${strokeWidth * 3} ${strokeWidth * 2}" />`
+    `<rect x="${groove.x}" y="${groove.y}" width="${groove.width}" height="${groove.height}" fill="none" stroke="#555555" stroke-width="${strokeWidth}" stroke-dasharray="${strokeWidth * 3} ${strokeWidth * 2}" />`
   )).join('');
   const details = (panel.detailPaths || []).map(path => (
-    `<${panel.detailPathsClosed === false ? 'polyline' : 'polygon'} points="${path.map(point => `${point.x},${point.y}`).join(' ')}" fill="none" stroke="#655044" stroke-width="${strokeWidth}" stroke-linejoin="round" />`
+    `<${panel.detailPathsClosed === false ? 'polyline' : 'polygon'} points="${path.map(point => `${point.x},${point.y}`).join(' ')}" fill="none" stroke="#666666" stroke-width="${strokeWidth}" stroke-linejoin="round" />`
   )).join('');
   const edgeLines = buildEdgeBandingLines(panel, width, height);
   const edgeBores = (panel.edgeBores || []).map(b => {
     const s = strokeWidth * 4;
-    return `<path d="M ${b.x - s} ${b.y} h ${s * 2} M ${b.x} ${b.y - s} v ${s * 2}" stroke="#b66a20" stroke-width="${strokeWidth}" />`;
+    return `<path d="M ${b.x - s} ${b.y} h ${s * 2} M ${b.x} ${b.y - s} v ${s * 2}" stroke="#555555" stroke-width="${strokeWidth}" />`;
   }).join('');
 
   return `<svg class="panel-preview-svg" viewBox="${viewBox}" role="img" aria-label="${escapeHtml(panel.name)} preview">
     <g transform="translate(0 ${height}) scale(1 -1)">
-      <rect x="0" y="0" width="${width}" height="${height}" rx="${Math.min(width, height) * 0.015}" fill="#edf3ff" stroke="#7f91b1" stroke-width="${strokeWidth}" />
+      <rect x="0" y="0" width="${width}" height="${height}" rx="${Math.min(width, height) * 0.015}" fill="#f0f0f0" stroke="#888888" stroke-width="${strokeWidth}" />
       ${notches}
       ${grooves}
       ${details}
@@ -894,7 +970,7 @@ function buildPanelPreviewSvg(panel) {
 
 function buildEdgeBandingLines(panel, width, height) {
   const eb = panel.edgeBanding || {};
-  const stroke = '#f07f2f';
+  const stroke = '#333333';
   const sw = Math.max(2, Math.min(width, height) / 42);
   const lines = [];
   if (eb.top) lines.push(`<line x1="0" y1="${height}" x2="${width}" y2="${height}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" />`);

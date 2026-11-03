@@ -1,3 +1,7 @@
+import { machinedPanelGeometry } from './panel-mesh.js';
+import { explodedPanels } from './exploded-view.js';
+import { panelBores } from './panel-bores.js?v=20261103c';
+import { requestCad } from './cad-client.js?v=20261103s';
 import { panelSolidData } from './panel-solid.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -21,7 +25,7 @@ export class CabinetViewport {
 
   _initScene() {
     const { container } = this;
-    this.fogColor = 0xf8f9fb;
+    this.fogColor = 0xffffff;
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -53,7 +57,7 @@ export class CabinetViewport {
     dirLight.shadow.mapSize.height = 1024;
     this.scene.add(dirLight);
 
-    const fillLight = new THREE.DirectionalLight(0xfafcff, 0.34);
+    const fillLight = new THREE.DirectionalLight(0xfafafa, 0.34);
     fillLight.position.set(-800, 1000, -1000);
     this.scene.add(fillLight);
 
@@ -61,7 +65,7 @@ export class CabinetViewport {
     rimLight.position.set(0, -500, 1500);
     this.scene.add(rimLight);
 
-    const gridHelper = new THREE.GridHelper(3000, 30, 0xd8dde6, 0xeff2f7);
+    const gridHelper = new THREE.GridHelper(3000, 30, 0xdcdcdc, 0xf0f0f0);
     gridHelper.position.y = -0.5;
     gridHelper.material.opacity = 0.48;
     gridHelper.material.transparent = true;
@@ -89,9 +93,9 @@ export class CabinetViewport {
       </div>
       <select aria-label="Camera view">
         <option value="">Views…</option>
+        <option value="home">Home</option>
         ${views.map(view => `<option value="${view.toLowerCase()}">${view}</option>`).join('')}
-      </select>
-      <button type="button" class="view-cube-home" data-view="home">Home</button>`;
+      </select>`;
     this.viewCube.addEventListener('click', event => {
       const view = event.target.closest('[data-view]')?.dataset.view;
       if (view) this.setView(view);
@@ -100,6 +104,8 @@ export class CabinetViewport {
       this.setView(event.target.value);
       event.target.value = '';
     });
+    const units = document.getElementById('units-select')?.closest('label');
+    if (units) this.viewCube.appendChild(units);
     this.container.appendChild(this.viewCube);
     this.cube = this.viewCube.querySelector('.view-cube');
   }
@@ -176,6 +182,7 @@ export class CabinetViewport {
   }
 
   _toggleAnim(panel) {
+    if (this.exploded) return;
     const state = this.animStates.get(panel.id);
     if (!state) return;
     state.target = state.target === 0 ? state.max : 0;
@@ -198,7 +205,17 @@ export class CabinetViewport {
     }
   }
 
+  setExploded(enabled) {
+    this.exploded = enabled;
+    this._lastSize = null;
+    if (this._panels) this.update(this._panels);
+  }
+
   update(panels) {
+    this._panels = panels;
+    const assembledPanels = panels;
+    if (this.exploded) panels = explodedPanels(panels);
+    const revision = this._cadRevision = (this._cadRevision || 0) + 1;
     this._clearScene();
 
     this.animStates.clear();
@@ -247,7 +264,10 @@ export class CabinetViewport {
     }
 
     for (const p of panels) {
-      if (p.type === 'door') {
+      if (this.exploded) {
+        const mesh = this._buildPanelMesh(p);
+        if (mesh) this.panelGroup.add(mesh);
+      } else if (p.type === 'door') {
         this._addDoor(p);
       } else if (p.type === 'drawer' || p.type === 'drawer-box') {
         // handled via drawer groups below
@@ -257,11 +277,51 @@ export class CabinetViewport {
       }
     }
 
-    for (const [, drawerPanels] of drawerPanelsByIndex) {
+    for (const [, drawerPanels] of this.exploded ? [] : drawerPanelsByIndex) {
       this._addDrawerGroup(drawerPanels);
     }
 
     this._requestRender();
+    this._loadMachinedGeometry(assembledPanels,revision);
+  }
+
+  _setCadStatus(text, busy = false) {
+    const status = document.getElementById('cad-status');
+    if (!status) return;
+    status.textContent = text;
+    status.classList.toggle('busy', busy);
+    status.setAttribute('aria-busy', String(busy));
+  }
+
+  async _loadMachinedGeometry(panels,revision) {
+    this._setCadStatus('Building detailed model…', true);
+    try {
+      const models = await requestCad('mesh',panels, progress => {
+        if (!this._isDisposed && revision === this._cadRevision) {
+          this._setCadStatus(`${progress.phase} ${progress.done}/${progress.total}…`, true);
+        }
+      });
+      if (this._isDisposed || revision !== this._cadRevision) return;
+      this._setCadStatus('Rendering detailed model…', true);
+      // Let the browser paint the rendering status before uploading the meshes.
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      if (this._isDisposed || revision !== this._cadRevision) return;
+      for (const model of models) {
+        const entry = this.interactiveMeshes.find(item=>item.panel.id === model.id);
+        if (!entry) continue;
+        const {mesh,panel:p} = entry;
+        const geometry = machinedPanelGeometry(p, model);
+        mesh.geometry.dispose(); mesh.geometry=geometry;
+        for (const child of [...mesh.children]) if (child.userData.isPanelEdgeHelper) {
+          this._disposeNode(child);mesh.remove(child);
+        }
+        this._addEdgeHelper(mesh,geometry);
+      }
+      this._readyRevision = revision;
+      this._requestRender();
+    } catch (error) {
+      if (revision === this._cadRevision) this._setCadStatus(`Detailed geometry unavailable: ${error.message}`);
+    }
   }
 
   setShowEdges(showEdges) {
@@ -282,11 +342,12 @@ export class CabinetViewport {
     const doorThickness = p.sizeZ || 18;
 
     const pivot = new THREE.Object3D();
-    pivot.position.set(pivotX, p.posY, 0);
+    const hingeZ = p.posZ + doorThickness / 2;
+    pivot.position.set(pivotX, p.posY, hingeZ);
     this.panelGroup.add(pivot);
 
     const offsetX = hingeSide === 'left' ? p.sizeX / 2 : -p.sizeX / 2;
-    mesh.position.set(offsetX, 0, p.posZ);
+    mesh.position.set(offsetX, 0, p.posZ - hingeZ);
     pivot.add(mesh);
 
     this.animStates.set(p.id, {
@@ -294,7 +355,7 @@ export class CabinetViewport {
       pivotGroup: pivot,
       sign,
       pivotBaseX: pivotX,
-      pivotBaseZ: 0,
+      pivotBaseZ: hingeZ,
       doorThickness,
       hingeClearance: 1.5,
       hingeForwardTravel: Math.max(25, doorThickness * 1.4),
@@ -364,10 +425,10 @@ export class CabinetViewport {
     mesh.receiveShadow = true;
     this._addEdgeHelper(mesh, geometry);
     this._addHoleMarkers(mesh, p);
-    for (const path of p.detailPaths || []) {
+    for (const path of p.detailMachining ? [] : p.detailPaths || []) {
       const points = path.map(point => new THREE.Vector3(point.x - p.cutWidth / 2, point.y - p.cutHeight / 2, -p.sizeZ / 2 - 0.3));
       const DetailLine = p.detailPathsClosed === false ? THREE.Line : THREE.LineLoop;
-      const detail = new DetailLine(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x655044 }));
+      const detail = new DetailLine(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x666666 }));
       mesh.add(detail);
     }
     mesh.position.set(p.posX, p.posY, p.posZ);
@@ -377,7 +438,7 @@ export class CabinetViewport {
   _addEdgeHelper(mesh, geometry) {
     const edgeGeometry = new THREE.EdgesGeometry(geometry, 18);
     const edgeMaterial = new THREE.LineBasicMaterial({
-      color: 0x28456f,
+      color: 0x444444,
       transparent: true,
       opacity: 0.42,
       depthTest: true,
@@ -391,13 +452,16 @@ export class CabinetViewport {
   }
 
   _addHoleMarkers(mesh, p) {
+    const modelled = new Set(panelBores(p).map(b=>b.source));
     for (const hole of p.holes || []) {
+      if (modelled.has(hole)) continue;
       const marker = this._buildHoleMarker(hole, p);
       if (marker) mesh.add(marker);
     }
     for (const bore of p.edgeBores || []) {
+      if (modelled.has(bore)) continue;
       const marker = new THREE.Mesh(new THREE.CircleGeometry(bore.diameter / 2, 24),
-        new THREE.MeshBasicMaterial({ color: 0xb66a20, side: THREE.DoubleSide, depthWrite: false }));
+        new THREE.MeshBasicMaterial({ color: 0x555555, side: THREE.DoubleSide, depthWrite: false }));
       if (p.id === 'side-left' || p.id === 'side-right') {
         const z = p.id === 'side-right' ? p.cutWidth - bore.x : bore.x;
         marker.position.set(0, p.sizeY / 2 + 0.8, z - p.sizeZ / 2);
@@ -497,18 +561,18 @@ export class CabinetViewport {
 
   _holeMarkerColor(purpose) {
     switch (purpose) {
-      case 'handle': return 0x3c61ff;
+      case 'handle': return 0x333333;
       case 'hinge-cup':
-      case 'hinge-mounting-plate': return 0x5a84d8;
-      case 'shelf-pin': return 0x63a3b0;
-      case 'alignment-dowel': return 0xb66a20;
+      case 'hinge-mounting-plate': return 0x555555;
+      case 'shelf-pin': return 0x777777;
+      case 'alignment-dowel': return 0x555555;
       case 'cam-housing':
-      case 'cam-bolt-pilot': return 0x9b5722;
+      case 'cam-bolt-pilot': return 0x444444;
       case 'cabineo-housing':
-      case 'cabineo-pilot': return 0x7b548f;
+      case 'cabineo-pilot': return 0x666666;
       case 'drawer-runner-reference':
-      case 'drawer-slide-reference': return 0x2747d9;
-      default: return 0x28456f;
+      case 'drawer-slide-reference': return 0x555555;
+      default: return 0x444444;
     }
   }
 
@@ -568,6 +632,14 @@ export class CabinetViewport {
 
     this._updateFog();
     this.renderer.render(this.scene, this.camera);
+    if (this._readyRevision === this._cadRevision) {
+      const revision = this._readyRevision;
+      this._readyRevision = null;
+      // Keep busy through the frame that presents the uploaded geometry.
+      requestAnimationFrame(() => {
+        if (!this._isDisposed && revision === this._cadRevision) this._setCadStatus('Ready');
+      });
+    }
     if (this.cube) {
       const e = this.camera.matrixWorldInverse.elements;
       this.cube.style.transform = `matrix3d(${e[0]},${-e[1]},${e[2]},0,${-e[4]},${e[5]},${-e[6]},0,${e[8]},${-e[9]},${e[10]},0,0,0,0,1)`;

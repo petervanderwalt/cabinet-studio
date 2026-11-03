@@ -22,18 +22,18 @@
     :root {
       --font-heading: "Outfit", "Segoe UI", sans-serif;
       --font-body: "Manrope", "Segoe UI", sans-serif;
-      --bg: #eef5ff;
-      --bg-soft: #f7faff;
+      --bg: #f6f6f6;
+      --bg-soft: #fbfbfb;
       --panel: rgba(255, 255, 255, 0.96);
       --panel-strong: #ffffff;
-      --line: rgba(46, 82, 148, 0.1);
-      --line-strong: rgba(46, 82, 148, 0.18);
-      --text: #17233a;
-      --muted: #6b7a96;
-      --accent: #3c61ff;
-      --accent-deep: #1b2f78;
-      --accent-soft: #dfe8ff;
-      --shadow: 0 12px 24px rgba(92, 126, 181, 0.08);
+      --line: rgba(92, 92, 92, 0.1);
+      --line-strong: rgba(92, 92, 92, 0.18);
+      --text: #272727;
+      --muted: #7e7e7e;
+      --accent: #898989;
+      --accent-deep: #414141;
+      --accent-soft: #ededed;
+      --shadow: 0 12px 24px rgba(133, 133, 133, 0.08);
       --radius-xl: 18px;
       --radius-lg: 12px;
       --radius-md: 8px;
@@ -46,9 +46,9 @@
       height: 100%;
       font-family: var(--font-body);
       background:
-        radial-gradient(circle at top left, rgba(111, 163, 255, 0.24), transparent 26%),
+        radial-gradient(circle at top left, rgba(176, 176, 176, 0.24), transparent 26%),
         radial-gradient(circle at top right, rgba(255, 255, 255, 0.86), transparent 32%),
-        linear-gradient(180deg, #f8fbff 0%, #eaf2ff 54%, #f3f7ff 100%);
+        linear-gradient(180deg, #fbfbfb 0%, #f4f4f4 54%, #f8f8f8 100%);
       color: var(--text);
     }
 
@@ -73,10 +73,10 @@
       gap: 12px;
       min-height: 48px;
       padding: 8px 12px;
-      border: 1px solid rgba(61, 95, 171, 0.1);
+      border: 1px solid rgba(109, 109, 109, 0.1);
       border-radius: 12px;
       background: rgba(255, 255, 255, 0.88);
-      box-shadow: 0 6px 16px rgba(97, 130, 186, 0.08);
+      box-shadow: 0 6px 16px rgba(138, 138, 138, 0.08);
       backdrop-filter: blur(12px);
     }
 
@@ -91,8 +91,8 @@
       width: 34px;
       height: 34px;
       border-radius: 8px;
-      background: linear-gradient(180deg, #ffffff, #eef4ff);
-      border: 1px solid rgba(61, 95, 171, 0.12);
+      background: linear-gradient(180deg, #ffffff, #f6f6f6);
+      border: 1px solid rgba(109, 109, 109, 0.12);
       display: grid;
       place-items: center;
       overflow: hidden;
@@ -138,7 +138,7 @@
       gap: 6px;
       min-height: 30px;
       padding: 0 12px;
-      border: 1px solid rgba(61, 95, 171, 0.12);
+      border: 1px solid rgba(109, 109, 109, 0.12);
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.94);
       color: var(--text);
@@ -152,9 +152,9 @@
 
     .topbar-btn:hover {
       background: #ffffff;
-      border-color: rgba(61, 95, 171, 0.22);
+      border-color: rgba(109, 109, 109, 0.22);
       transform: translateY(-1px);
-      box-shadow: 0 6px 14px rgba(97, 130, 186, 0.08);
+      box-shadow: 0 6px 14px rgba(138, 138, 138, 0.08);
     }
 
     .topbar-btn i {
@@ -166,12 +166,12 @@
     #viewport-panel,
     #layout-list {
       min-height: 0;
-      border: 1px solid rgba(61, 95, 171, 0.08);
+      border: 1px solid rgba(109, 109, 109, 0.08);
       border-radius: 14px;
       box-shadow: var(--shadow);
       overflow: hidden;
       background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 255, 0.98));
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 249, 249, 0.98));
     }
 
     .panel-shell {
@@ -186,7 +186,7 @@
       align-items: center;
       gap: 10px;
       padding: 12px 14px 10px;
-      border-bottom: 1px solid rgba(61, 95, 171, 0.08);
+      border-bottom: 1px solid rgba(109, 109, 109, 0.08);
     }
 
     .panel-head h1,
@@ -219,15 +219,15 @@
 
     .panel-scroll::-webkit-scrollbar-thumb,
     #layout-list-body::-webkit-scrollbar-thumb {
-      background: rgba(46, 82, 148, 0.16);
+      background: rgba(92, 92, 92, 0.16);
       border-radius: 999px;
     }
 
     .card {
-      border: 1px solid rgba(61, 95, 171, 0.08);
+      border: 1px solid rgba(109, 109, 109, 0.08);
       border-radius: 12px;
       background: rgba(255, 255, 255, 0.9);
-      box-shadow: 0 8px 18px rgba(95, 126, 178, 0.06);
+      box-shadow: 0 8px 18px rgba(133, 133, 133, 0.06);
       padding: 12px;
       display: flex;
       flex-direction: column;
@@ -266,7 +266,7 @@
       font-weight: 700;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: #61739a;
+      color: #7a7a7a;
     }
 
     .field input,
@@ -274,7 +274,7 @@
       width: 100%;
       min-height: 38px;
       padding: 0 12px;
-      border: 1px solid rgba(61, 95, 171, 0.12);
+      border: 1px solid rgba(109, 109, 109, 0.12);
       border-radius: 10px;
       background: #ffffff;
       color: var(--text);
@@ -285,8 +285,8 @@
 
     .field input:focus,
     .field select:focus {
-      border-color: rgba(60, 97, 255, 0.4);
-      box-shadow: 0 0 0 3px rgba(60, 97, 255, 0.08);
+      border-color: rgba(137, 137, 137, 0.4);
+      box-shadow: 0 0 0 3px rgba(137, 137, 137, 0.08);
     }
 
     .metric-row {
@@ -296,9 +296,9 @@
     }
 
     .metric {
-      border: 1px solid rgba(61, 95, 171, 0.1);
+      border: 1px solid rgba(109, 109, 109, 0.1);
       border-radius: 10px;
-      background: #f8fbff;
+      background: #fbfbfb;
       padding: 10px;
       display: flex;
       flex-direction: column;
@@ -310,7 +310,7 @@
       font-weight: 700;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: #7081a4;
+      color: #878787;
     }
 
     .metric strong {
@@ -331,7 +331,7 @@
       align-items: center;
       gap: 10px;
       padding: 10px 12px;
-      border-bottom: 1px solid rgba(61, 95, 171, 0.08);
+      border-bottom: 1px solid rgba(109, 109, 109, 0.08);
       background: rgba(255, 255, 255, 0.88);
     }
 
@@ -360,7 +360,7 @@
       gap: 6px;
       min-height: 32px;
       padding: 0 12px;
-      border: 1px solid rgba(61, 95, 171, 0.1);
+      border: 1px solid rgba(109, 109, 109, 0.1);
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.92);
       font-size: 12px;
@@ -374,7 +374,7 @@
       min-height: 0;
       overflow: hidden;
       background:
-        radial-gradient(circle at top, rgba(255, 255, 255, 0.96), rgba(240, 246, 255, 0.94));
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.96), rgba(247, 247, 247, 0.94));
     }
 
     #layout-viewport canvas {
@@ -388,10 +388,10 @@
       left: 14px;
       bottom: 14px;
       padding: 10px 12px;
-      border: 1px solid rgba(61, 95, 171, 0.08);
+      border: 1px solid rgba(109, 109, 109, 0.08);
       border-radius: 12px;
       background: rgba(255, 255, 255, 0.9);
-      box-shadow: 0 10px 18px rgba(95, 126, 178, 0.08);
+      box-shadow: 0 10px 18px rgba(133, 133, 133, 0.08);
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -425,7 +425,7 @@
     }
 
     .cabinet-row {
-      border: 1px solid rgba(61, 95, 171, 0.1);
+      border: 1px solid rgba(109, 109, 109, 0.1);
       border-radius: 12px;
       background: rgba(255, 255, 255, 0.92);
       padding: 12px;
@@ -438,12 +438,12 @@
 
     .cabinet-row:hover {
       transform: translateY(-1px);
-      box-shadow: 0 8px 16px rgba(92, 126, 181, 0.08);
+      box-shadow: 0 8px 16px rgba(133, 133, 133, 0.08);
     }
 
     .cabinet-row.active {
-      border-color: rgba(60, 97, 255, 0.34);
-      box-shadow: 0 0 0 3px rgba(60, 97, 255, 0.08);
+      border-color: rgba(137, 137, 137, 0.34);
+      box-shadow: 0 0 0 3px rgba(137, 137, 137, 0.08);
     }
 
     .cabinet-row-top {
@@ -471,8 +471,8 @@
       font-weight: 700;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: #345186;
-      background: #e8efff;
+      color: #595959;
+      background: #f2f2f2;
     }
 
     .cabinet-row-meta {
@@ -488,7 +488,7 @@
       display: grid;
       place-items: center;
       text-align: center;
-      border: 1px dashed rgba(61, 95, 171, 0.16);
+      border: 1px dashed rgba(109, 109, 109, 0.16);
       border-radius: 12px;
       color: var(--muted);
       background: rgba(255, 255, 255, 0.72);
@@ -520,7 +520,7 @@
       gap: 6px;
       min-height: 32px;
       padding: 0 12px;
-      border: 1px solid rgba(61, 95, 171, 0.12);
+      border: 1px solid rgba(109, 109, 109, 0.12);
       border-radius: 999px;
       background: #ffffff;
       color: var(--text);
@@ -530,8 +530,8 @@
     }
 
     .mini-btn:hover {
-      border-color: rgba(60, 97, 255, 0.24);
-      background: #f9fbff;
+      border-color: rgba(137, 137, 137, 0.24);
+      background: #fcfcfc;
     }
 
     @media (max-width: 1280px) {
@@ -573,8 +573,9 @@
       #app button, #app select { min-height: 44px; }
     }
   </style>
+  <link rel="stylesheet" href="assets/ui-theme.css?v=20261103u">
 </head>
-<body>
+<body class="kitchen-layout">
   <div id="app">
     <div class="topbar">
       <div class="topbar-brand">
@@ -701,6 +702,7 @@
       <div class="viewport-toolbar">
         <div>
           <h2>Kitchen Layout View</h2>
+          <p id="layout-model-status" role="status" aria-live="polite">Preparing cabinets…</p>
           <p id="layout-subtitle">Import a project JSON to start laying out cabinets in the room.</p>
         </div>
         <div class="viewport-tools">
@@ -725,6 +727,6 @@
     </aside>
   </div>
 
-  <script type="module" src="js/kitchen-layout.js?v=20261022e"></script>
+  <script type="module" src="js/kitchen-layout.js?v=20261103y"></script>
 </body>
 </html>

@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import { CabinetForm } from '../js/form-ui.js';
+const oldDocument = globalThis.document;
+const element = () => ({ children: [], attrs: {}, events: {}, appendChild(child) { this.children.push(child); }, setAttribute(key, value) { this.attrs[key] = value; }, addEventListener(key, fn) { this.events[key] = fn; }, focus() { this.focused = true; } });
+globalThis.document = { createElement: element };
+try {
+  const form = Object.create(CabinetForm.prototype);
+  form._buildSection = (root) => { const panel = element(); root.appendChild(panel); return panel; };
+  const root = element();
+  const sections = ['front', 'interior', 'hardware'].map(id => [id, id, id, []]);
+  form._buildSettingsTabs(root, sections);
+  const tabs = root.children[0].children;
+  assert.equal(tabs[0].attrs['aria-selected'], 'true');
+  tabs[2].events.click();
+  assert.deepEqual(root.children.slice(1).map(p => p.hidden), [true, true, false]);
+  assert.equal(tabs[2].tabIndex, 0);
+  tabs[2].events.keydown({ key: 'ArrowRight', preventDefault() {} });
+  assert.equal(form._activeSettingsTab, 'front');
+  assert.equal(tabs[0].focused, true);
+  tabs[1].events.click();
+  const rerender = element();
+  form._buildSettingsTabs(rerender, sections);
+  assert.equal(rerender.children[2].hidden, false, 'active tab survives form rebuild');
+  const drawer = element();
+  form._buildSettingsTabs(drawer, sections.filter(([id]) => id !== 'interior'));
+  assert.equal(form._activeSettingsTab, 'front', 'missing Interior falls back to fronts');
+} finally { globalThis.document = oldDocument; }
+console.log('PASS: settings tab visibility, keyboard wrapping, retained selection and drawer fallback');
+const modeForm = Object.create(CabinetForm.prototype);
+modeForm.config = { construction: 'face-frame', front: { mode: 'doors' }, drawers: { count: 2, heights: [200, 200] } };
+let recalculated = 0;
+modeForm._autoDrawerHeights = count => { assert.equal(count, 2); recalculated++; };
+modeForm._render = () => {};
+modeForm._emitChange = () => {};
+modeForm._setFrontMode('drawers');
+assert.equal(modeForm.config.construction, 'frameless');
+assert.equal(recalculated, 1, 'switching construction recalculates the drawer opening');
+console.log('PASS: selecting drawers switches unsupported face-frame construction to frameless');

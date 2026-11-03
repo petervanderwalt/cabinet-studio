@@ -1,0 +1,120 @@
+/* Shared monochrome controls. Geometry and material colours stay independent. */
+:root {
+  --bg: #f2f2f2; --bg-soft: #f5f5f5; --panel: #fff; --panel-strong: #fff;
+  --line: #e3e3e3; --line-strong: #d9d9d9; --text: #252525; --muted: #686868;
+  --accent: #333; --accent-deep: #292929; --accent-soft: #ededed; --teal: #555;
+  --shadow: none;
+}
+html, body { background: #f2f2f2; }
+.topbar, .sidebar-shell, #viewport-panel, #panel-info { background: #fafafa; box-shadow: none; }
+.topbar { background: white; }
+button, select, input, .viewport-toggle, .viewport-copies { box-shadow: none !important; }
+button:hover { transform: none !important; }
+button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
+  outline: 2px solid #555; outline-offset: 2px;
+}
+.topbar-btn, .settings-tabs button, .tab, .mode-card, .tablet-nav button,
+.nesting-setup-tabs button, .viewport-toggle, .viewport-copies, .export-row-btn {
+  min-height: 44px; border: 1px solid #d9d9d9; border-radius: 8px;
+  background: #fff; color: #252525; font-size: 12px; font-weight: 500;
+  letter-spacing: normal; text-transform: none; box-shadow: none;
+}
+.topbar-btn { padding: 0 12px; }
+.topbar-btn:hover, .tab:hover, .mode-card:hover, .settings-tabs button:hover,
+.nesting-setup-tabs button:hover, .viewport-toggle:hover, .export-row-btn:hover {
+  background: #f0f0f0; border-color: #888;
+}
+.topbar-btn-primary, .topbar-btn-primary:hover { background: #292929; color: #fff; border-color: #292929; }
+.topbar-btn-primary:hover { background: #444; }
+.settings-tabs, .mode-grid, .tab-bar, .nesting-setup-tabs, .tablet-nav {
+  background: #e3e3e3; padding: 4px; gap: 4px; border-radius: 10px;
+}
+.settings-tabs button, .mode-card, .tab, .nesting-setup-tabs button, .tablet-nav button {
+  background: transparent;
+}
+.settings-tabs button[aria-selected="true"], .tab.active, .mode-card.active,
+.nesting-setup-tabs button[aria-selected="true"], .tablet-nav button[aria-pressed="true"] {
+  background: white; color: #252525; border-color: #777;
+}
+.mode-card { justify-content: center; align-items: center; }
+.mode-card-head { color: inherit; font-size: 12px; font-weight: 500; letter-spacing: normal; text-transform: none; }
+.form-section, .nesting-sheet-card { border-color: #dedede; border-radius: 10px; background: white; }
+.form-section-icon, .panel-info-head h3 i, .helper-card { background: #ededed; color: #555; border-color: #dedede; }
+.form-section h3, .panel-info-head h3 { color: #555; }
+.viewport-toggle, .viewport-copies { padding: 0 10px; }
+.viewport-toggle:has(input:checked) { border-color: #999; background: #fff; }
+.viewport-copies input { border-radius: 6px; background: #fff; }
+input[type="checkbox"] { accent-color: #333; }
+.viewport-toggle input, .nesting-check-field input { width: 16px; height: 16px; flex: 0 0 16px; margin: 0; }
+.view-cube-control button, .view-cube-control select { background: #fafafa; border-color: #999; color: #252525; }
+.view-cube-control button:hover { background: #e3e3e3; }
+#cad-status.busy { background: #e3e3e3; color: #252525; border-top-color: #555; }
+#cad-status.busy::before { border-color: #aaa; border-top-color: #333; }
+.nesting-controls-card { background: #e9e9e9; border: 1px solid #dedede; border-radius: 10px; padding: 10px; gap: 14px; }
+.nesting-setup-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+.nesting-setup-tabs button { cursor: pointer; }
+.nesting-controls-grid[hidden] { display: none; }
+#nesting-stock-panel { gap: 1px; border-radius: 8px; overflow: hidden; }
+.nesting-stock-group { display: block; background: white; border-bottom: 1px solid #dedede; }
+.nesting-stock-group:last-child { border-bottom: 0; }
+.nesting-stock-group summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; list-style: none; cursor: pointer; padding: 14px; min-height: 50px; }
+.nesting-stock-group summary::-webkit-details-marker { display: none; }
+.nesting-stock-group summary strong { font-size: 12px; font-weight: 600; display: block; }
+.nesting-stock-group summary small { display: block; margin-top: 5px; font-size: 11px; color: #686868; }
+.nesting-stock-group[open] summary small { display: none; }
+.nesting-stock-group summary i { font-size: 11px; color: #686868; }
+.nesting-stock-group[open] summary i::before { content: "\f068"; }
+.nesting-stock-pair { padding: 0 14px 14px; grid-template-columns: 1fr 1fr; gap: 12px 8px; }
+.nesting-stock-pair > label:first-child { grid-column: 1 / -1; }
+.nesting-stock-field span { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: normal; }
+.nesting-stock-field select, .nesting-inline-input input { min-height: 44px; border-color: #d9d9d9; background: white; }
+.nesting-settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 8px; padding: 0; }
+.nesting-settings-grid > :nth-child(n+3) { grid-column: 1 / -1; }
+.nesting-stock-field { min-width: 0; }
+.nesting-inline-input { gap: 4px; }
+.nesting-check-field { min-height: 44px; border-color: #999; background: #fff; font-weight: 500; }
+.nesting-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.nesting-metric { background: #fff; border-color: #d9d9d9; padding: 10px; }
+.nesting-metric span { text-transform: none; letter-spacing: normal; font-size: 11px; }
+.nesting-metric strong { font-size: 17px; }
+#viewport-container { background: #fafafa; }
+@media (max-width: 1100px) {
+  .topbar-actions { gap: 6px; }
+  .topbar-btn { padding: 0 8px; }
+}
+
+/* Keep progress legible without taking space from the model. */
+#cad-status, #cad-status.busy {
+  min-height: 24px; padding: 3px 10px; font-size: 11px; line-height: 17px;
+  font-weight: 500; border-top: 1px solid #d9d9d9;
+}
+#cad-status.busy::before { width: 11px; height: 11px; flex-basis: 11px; }
+
+.modal-review-stage { position: relative; min-height: 0; overflow-y: auto; }
+.panel-review-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; width: 44px; height: 44px; border: 1px solid #d9d9d9; border-radius: 8px; background: white; color: #333; cursor: pointer; }
+.panel-review-nav:hover { transform: translateY(-50%) !important; background: #ededed; }
+.panel-review-prev { left: 8px; }
+.panel-review-next { right: 8px; }
+.modal-review-stage:has(.panel-review-nav:not([hidden])) .modal-body { padding-left: 60px; padding-right: 60px; }
+
+/* Kitchen Layout uses the same surfaces and controls as the cabinet editor. */
+.kitchen-layout .panel-shell, .kitchen-layout #layout-list { background: #fafafa; box-shadow: none; }
+.kitchen-layout .card, .kitchen-layout .metric { background: white; border-color: #dedede; box-shadow: none; }
+.kitchen-layout .mini-btn, .kitchen-layout .chip { min-height: 44px; border-radius: 8px; border: 1px solid #d9d9d9; background: white; color: #252525; font-size: 12px; box-shadow: none; }
+.kitchen-layout .cabinet-row { background: white; border-color: #dedede; border-radius: 8px; box-shadow: none; }
+.kitchen-layout .cabinet-row.active { background: #ededed; border-color: #777; }
+.kitchen-layout .field input, .kitchen-layout .field select { min-height: 44px; border-radius: 8px; border-color: #d9d9d9; }
+.kitchen-layout .field label, .kitchen-layout .field span { color: #686868; font-weight: 500; letter-spacing: normal; text-transform: none; }
+.kitchen-layout .viewport-overlay { background: rgba(255,255,255,.95); border-color: #dedede; box-shadow: none; }
+
+.view-cube-control { width: 144px; }
+.view-units { display: grid; gap: 3px; font-size: 10px; color: #686868; }
+.view-units select { color: #252525; padding: 0 8px; font-size: 12px; font-weight: 500; }
+
+/* Cabinet tabs attach to the white viewport; the strip sits on the page background. */
+#viewport-panel, .viewport-stage, #viewport-container { background: #fff; }
+.viewport-project-shell { background: #f2f2f2; }
+.project-tab.active { background: #fff; border-bottom-color: #fff; }
+#cad-status:not(.busy) { background: #fff; }
+
+.field[hidden] { display: none; }

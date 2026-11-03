@@ -1,3 +1,5 @@
+import { frontLayout } from './front-layout.js';
+import { runnerSettings } from './runner-layout.js';
 // Dimensions are millimetres. Presets apply only on selection; stored dimensions remain authoritative.
 const sources = {
   blum: 'https://publications.blum.com/2024/catalogue/en/150/',
@@ -31,6 +33,8 @@ export const HARDWARE_LIBRARY = [
     note: 'Cam 13957 + bolt 9047861: Ø15 × 13.4 mm pocket, 34 mm centre offset, Ø8 edge passage, Ø5 × 11.5 mm bolt pilot. 18 mm stock only. Separate edge setup; test fit required.',
     values: { 'hardware.joineryType': 'rastex-18', 'hardware.connectorEndOffset': 37, 'hardware.connectorMaxSpacing': 160 } },
   { id: 'cup-35', category: 'hingeCup', label: '35 mm concealed cup — custom fixing', status: 'drilling', source: sources.blum, note: 'Cup only: 4.5 mm edge distance and 13 mm depth are editable starting values. Verify hinge SKU; screw/dowel fixing holes are not generated.', values: { 'hardware.hingeBoreDiameter': 35, 'hardware.hingeBoreInset': 22, 'hardware.hingeBoreDepth': 13 } },
+  { id: 'cup-blum-inset', category: 'hingeCup', label: 'Blum 71B3750 � 110� inset hinge', status: 'drilling', source: 'https://www.wurthmachinery.com/skin/common_files/files/specs/B71B375_Datasheet.pdf', note: 'Fully cranked inset hinge, frameless cabinets. �35 � 13 mm cup; 4.5 mm edge distance is an editable starting point (catalogue range 3�7 mm). Select the inset plate preset too. Cup fixing holes are not generated; verify plate height and trial fit.', values: { 'hardware.hingeBoreDiameter': 35, 'hardware.hingeBoreInset': 22, 'hardware.hingeBoreDepth': 13 } },
+  { id: 'plate-blum-inset', category: 'hingePlate', label: 'Blum frameless inset � 37/32 + door setback', status: 'drilling', source: 'https://publications.blum.com/2022/catalogue/en/89/', note: 'For fully cranked inset hinges. One 32 mm pair, base setback 37 mm plus door thickness + 1.5 mm, updated automatically. Start with a 0 mm plate; verify the selected hinge/plate combination. Edit the base offset below to customize.', values: { 'hardware.hingePlatePattern': 'blum-inset', 'hardware.hingePlateFrontHoleOffset': 37, 'hardware.hingePlateRearHoleOffset': 32, 'hardware.hingePlateHoleSpacing': 32, 'hardware.hingePlateSecondRow': false } },
   { id: 'plate-sa', category: 'hingePlate', label: 'South Africa — existing 20/32 four-hole pattern', status: 'drilling', note: 'Existing shop pattern; confirm the actual plate. Cup settings remain independent.', values: { 'hardware.hingePlatePattern': 'south-africa', 'hardware.hingePlateFrontHoleOffset': 20, 'hardware.hingePlateRearHoleOffset': 32, 'hardware.hingePlateHoleSpacing': 32, 'hardware.hingePlateSecondRow': true } },
   { id: 'plate-37-32', category: 'hingePlate', label: 'Blum cruciform — 37/32 two-hole pattern', status: 'drilling', source: sources.blum, note: 'Plate pattern only, for frameless cabinets. Cup setback, plate height, hinge fixing and overlay depend on the selected hinge.', values: { 'hardware.hingePlatePattern': 'blum', 'hardware.hingePlateFrontHoleOffset': 37, 'hardware.hingePlateRearHoleOffset': 32, 'hardware.hingePlateHoleSpacing': 32, 'hardware.hingePlateSecondRow': false } },
   { id: 'shelf-5-system32', category: 'shelfPins', label: '5 mm pins — 32 mm pitch / 37 mm setback', status: 'drilling', source: sources.shelf, note: 'Front and rear rows use the chosen setback. Set bore depth to suit the actual pin.', values: { 'hardware.shelfPinDiameter': 5, 'hardware.shelfPinSpacing': 32, 'hardware.shelfPinSetback': 37, 'hardware.shelfPinDepth': 10 } },
@@ -42,9 +46,9 @@ export const HARDWARE_LIBRARY = [
     status: 'drilling', source: sources.pulls, note: 'Centre spacing preset, not a specific pull model. Use the measured centres; nominal inch equivalents can be rounded in catalogues.',
     values: { 'hardware.handleType': 'pull', 'hardware.handleHoleSpacing': spacing, 'hardware.handleHoleDiameter': 5 },
   })),
-  { id: 'runner-3832e', category: 'runners', label: 'Accuride 3832E — side-mount fit', status: 'fit', source: sources.accuride,
-    note: '12.7 mm side space (+0.8 / −0); select an actual length. Fit only: use the manufacturer jig/drawing for mounting holes. Face frames need blocking or rear brackets.',
-    values: { 'hardware.runnerMode': 'side-mount', 'drawers.sideClearance': 12.7, 'hardware.runnerLength': 500 },
+  { id: 'runner-3832e', category: 'runners', label: 'Accuride 3832E — side mount + pilot centres', status: 'drilling', source: sources.accuride,
+    note: '12.7 mm side space (+0.8 / −0); select an actual length. Pilot centres from drawing 3700-9464 R10-0616; check the supplied slide before drilling. Edit the dimensions below for custom slides. Face frames need blocking or rear brackets.',
+    values: { 'hardware.runnerMode': 'side-mount', 'drawers.sideClearance': 12.7, 'hardware.runnerLength': 500, 'hardware.runnerPattern': 'accuride-3832e', 'hardware.runnerPilotDiameter': 3, 'hardware.runnerPilotDepth': 8, 'hardware.runnerHoleHeight': 31.8 },
     lengths: [250, 300, 350, 400, 450, 500, 550, 600, 650, 700] },
   { id: 'joinery-none', category: 'joinery', label: 'None', status: 'drilling', values: { 'hardware.joineryType': 'none' } },
   { id: 'dowel-8x30', category: 'joinery', image: 'assets/hardware/dowels.jpg', imageNote: 'TIMCO 8 × 30 mm dowels shown as a type reference; use the size selected above.', imageSource: 'https://timco.co.uk/WDOWEL830P-wooden-dowels', label: 'Dowels — 8 × 30 mm', status: 'drilling', note: 'Bottom, top and stretchers only. Matched face bores and a separate edge-boring schedule; 2 mm total glue allowance. Physical trial required.',
@@ -67,6 +71,7 @@ export function applyHardwarePreset(config, id) {
     next[group] ||= {};
     next[group][key] = value;
   }
+  if (id === 'runner-3832e') delete next.hardware.runnerSetback;
   return next;
 }
 
@@ -87,16 +92,18 @@ export function hardwareWarnings(config) {
   const hw = config.hardware || {};
   const warnings = [];
   const drawers = config.front?.mode === 'drawers' || (!config.front?.mode && config.drawers?.count > 0);
-  if (!drawers && hw.library?.hingePlate === 'plate-37-32' && config.construction !== 'frameless') warnings.push('The 37/32 cruciform preset requires a frameless carcass; plate bores omitted. Use the actual face-frame hinge drawing.');
+  if (!drawers && config.doors?.count > 0 && config.overlay?.type === 'inset') warnings.push('Inset doors require inset (fully cranked) hinges; standard overlay hinges are not suitable. Use an inset hinge and matching mounting plate; verify setback and trial fit.');
+  if (!drawers && hw.hingePlatePattern === 'blum-inset' && config.overlay?.type !== 'inset') warnings.push('The inset mounting plate pattern is selected for overlay doors; choose the matching overlay plate pattern.');
+  if (!drawers && (hw.library?.hingePlate === 'plate-37-32' || hw.hingePlatePattern === 'blum-inset') && config.construction !== 'frameless') warnings.push('The 37/32 cruciform preset requires a frameless carcass; plate bores omitted. Use the actual face-frame hinge drawing.');
   if (!drawers && (config.shelves?.count ?? 0) > 0) {
     if (!(hw.shelfPinSpacing > 0) || config.height / hw.shelfPinSpacing >= 10000) warnings.push('Shelf pin pitch must be positive and produce fewer than 10000 rows; pin bores omitted.');
     if (!(hw.shelfPinDepth > 0 && hw.shelfPinDepth <= config.materials.caseThickness - 2) && hw.shelfPinDepth != null) warnings.push('Shelf pin depth must leave at least 2mm of material; pin bores omitted.');
   }
   if (drawers && hw.runnerMode === 'side-mount') {
     const depth = config.depth - (config.overlay.type === 'inset' ? 0 : config.materials.doorThickness)
-      - (config.backMount === 'grooved-in' ? config.materials.backThickness : 0) - (config.construction === 'frameless' ? 0 : config.materials.caseThickness);
-    if (!(hw.runnerLength > 0 && hw.runnerLength + 3.2 <= depth)) warnings.push('Selected runner is too long for the available cabinet depth; drawer boxes omitted.');
-    if (!(config.drawers.sideClearance >= 12.7 && config.drawers.sideClearance <= 13.5)) warnings.push('Accuride 3832E side space must be 12.7–13.5mm per side; drawer boxes omitted.');
+      - (config.backMount === 'grooved-in' ? config.materials.backThickness : 0) - frontLayout(config).boxFront;
+    if (!(hw.runnerLength > 0 && hw.runnerLength + Math.max(3.2, runnerSettings(config).setback - frontLayout(config).boxFront) <= depth)) warnings.push('Selected runner is too long for the available cabinet depth; drawer boxes omitted.');
+    if (!(hw.runnerPattern === 'custom' ? config.drawers.sideClearance >= 0 : config.drawers.sideClearance >= 12.7 && config.drawers.sideClearance <= 13.5)) warnings.push('Accuride 3832E side space must be 12.7–13.5mm per side; drawer boxes omitted.');
     if (config.construction !== 'frameless') warnings.push('Side-mount runner fit currently requires a frameless carcass; drawer boxes omitted.');
   }
   return warnings;
@@ -115,7 +122,7 @@ export function hardwareBom(config, panels) {
   const shelves = panels.filter(p => p.type === 'shelf').length;
   if (shelves && count('shelf-pin')) rows.push({ item: label('shelfPins'), quantity: shelves * 4, unit: 'shelf pins' });
   const drawers = panels.filter(p => /(?:^|__)drawer-\d+-side-left$/.test(p.id)).length;
-  if (drawers) rows.push({ item: label('runners'), quantity: drawers, unit: 'runner pairs', note: hw.runnerMode === 'side-mount' ? `Length ${hw.runnerLength} mm; mounting by manufacturer drawing/jig.` : 'Existing reference holes are not a manufacturer mounting pattern.' });
+  if (drawers) rows.push({ item: label('runners'), quantity: drawers, unit: 'runner pairs', note: hw.runnerMode === 'side-mount' ? `Length ${hw.runnerLength} mm; pilot centres supplied; verify against the slide before drilling.` : 'Existing reference holes are not a manufacturer mounting pattern.' });
   const dowels = panels.reduce((n, p) => n + (p.edgeBores || []).filter(h => h.purpose === 'alignment-dowel').length, 0);
   const cams = count('cam-housing');
   const cabineos = count('cabineo-pilot');

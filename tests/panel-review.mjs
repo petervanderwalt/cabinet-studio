@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+const source = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
+const body = source.match(/function movePanelReview\(direction\) \{([\s\S]*?)\n\}/)[1];
+const panels = [{id:'left'}, {id:'right'}, {id:'bottom'}];
+const context = { currentPanels:panels, reviewPanelId:'left', openPanelReview(panel) { context.reviewPanelId = panel.id; } };
+const move = direction => vm.runInNewContext(`(function(direction) {${body}})(${direction})`, context);
+move(1); assert.equal(context.reviewPanelId, 'right');
+move(-1); assert.equal(context.reviewPanelId, 'left');
+move(-1); assert.equal(context.reviewPanelId, 'bottom');
+move(1); assert.equal(context.reviewPanelId, 'left');
+context.reviewPanelId = null; move(1); assert.equal(context.reviewPanelId, null, 'sheet previews do not navigate panels');
+context.currentPanels = [panels[0]]; context.reviewPanelId = 'left'; move(1); assert.equal(context.reviewPanelId, 'left');
+console.log('PASS: next/previous panel, wraparound, sheet isolation and single-panel guard');

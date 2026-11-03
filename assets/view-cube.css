@@ -40,7 +40,7 @@
 .view-cube-right { transform: rotateY(-90deg) translateZ(32px); }
 .view-cube-top { transform: rotateX(90deg) translateZ(32px) rotateZ(180deg); }
 .view-cube-bottom { transform: rotateX(-90deg) translateZ(32px); }
-.view-cube-control select, .view-cube-home {
+.view-cube-control select {
   width: 100%;
   min-height: 44px;
   border-radius: 8px;
