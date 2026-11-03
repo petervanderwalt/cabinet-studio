@@ -118,3 +118,15 @@ input[type="checkbox"] { accent-color: #333; }
 #cad-status:not(.busy) { background: #fff; }
 
 .field[hidden] { display: none; }
+
+/* Avoid accidental double-tap page zoom; OrbitControls owns canvas gestures. */
+html, body, #app, #form-container, #panel-info, .panel-scroll,
+#layout-list-body, .modal-body, button, input, select, textarea, label, summary, a {
+  touch-action: manipulation;
+}
+@media (any-pointer: coarse) {
+  /* iPad can report a mouse as its primary pointer while retaining touch. */
+  #app input:not([type="checkbox"]), #app select, #app textarea {
+    font-size: 16px;
+  }
+}
