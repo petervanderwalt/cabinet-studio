@@ -1,9 +1,12 @@
 import { setDetailMachining } from './detail-machining.js?v=20261103c';
-import { runnerSettings } from './runner-layout.js';
+import { runnerSettings } from './runner-layout.js?v=20261103b';
 import { frontLayout, drawerBoxBounds } from './front-layout.js';
 import { doorDetailPath, doorSlatPaths } from './door-detail.js?v=20261020o';
 import { splitStockAppearance } from './material-presets.js?v=20261020f';
-import { hardwareWarnings } from './hardware-library.js?v=20261103i';
+import { hardwareWarnings, selectedHardware } from './hardware-library.js?v=20261103n';
+import { handleModelPlacement } from './hardware-models.js?v=20261103c';
+import { addRunnerPreviews } from './runner-preview.js?v=20261103b';
+import { addSensysHardware } from './hinge-layout.js';
 import { addDowelJoinery } from './joinery.js?v=20261022e';
 import { addCamJoinery } from './cam-joinery.js?v=20261022e';
 import { addDados } from './dado-joinery.js?v=20261022e';
@@ -314,7 +317,7 @@ export function computePanels(cabinet) {
       if (needsHingePlates) {
         const doorBottomY = front.bottom;
         const doorH = front.height;
-        const hingeCount = H > 1300 ? 3 : 2;
+        const hingeCount = doorH > 1300 ? 3 : 2;
         const hingeVertPositions = hingeCount === 2 ? [100, doorH - 100] : [100, doorH / 2, doorH - 100];
         const hingePlateDepths = hw.hingePlateSecondRow === false
           ? [hingePlateFrontHoleOffset]
@@ -938,7 +941,14 @@ export function computePanels(cabinet) {
     panel.holes = panel.holes.filter(h => !invalidPurposes.has(h.purpose));
   }
   const joineryWarnings = [...addDowelJoinery(panels, cabinet), ...addCamJoinery(panels, cabinet), ...addDados(panels, cabinet), ...addCabineoJoinery(panels, cabinet)];
-  if (panels.length) panels[0].hardwareWarnings = [...new Set([...(panels[0].hardwareWarnings || []), ...hardwareWarnings(cabinet), ...boxWarnings, ...drillingWarnings, ...joineryWarnings])];
+  const handle = selectedHardware(cabinet).find(p => p.category === 'handles');
+  for (const panel of panels) {
+    const models = handleModelPlacement(panel, handle);
+    if (models.length) panel.hardwareModels = models;
+  }
+  addRunnerPreviews(panels, cabinet);
+  const hingeWarnings = addSensysHardware(panels, cabinet);
+  if (panels.length) panels[0].hardwareWarnings = [...new Set([...(panels[0].hardwareWarnings || []), ...hardwareWarnings(cabinet), ...boxWarnings, ...drillingWarnings, ...joineryWarnings, ...hingeWarnings])];
   return panels;
 }
 

@@ -6,6 +6,7 @@ import { panelSolidData } from './panel-solid.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createPanelMaterial, disposePanelMaterial } from './viewport-materials.js';
+import { addHardwareModels } from './hardware-view.js?v=20261103d';
 
 export class CabinetViewport {
   constructor(container, onPanelSelect) {
@@ -352,6 +353,7 @@ export class CabinetViewport {
 
     this.animStates.set(p.id, {
       type: 'door',
+      closedHardware:mesh.children.filter(child => child.userData.closedOnly),
       pivotGroup: pivot,
       sign,
       pivotBaseX: pivotX,
@@ -391,12 +393,17 @@ export class CabinetViewport {
 
 
     const drawDepth = frontPanel?.drawDepth || 400;
+    const runnerRails = [];
+    this.panelGroup.traverse(node => {
+      if (node.userData.runnerStage === 'intermediate' && node.userData.drawerId === frontPanel?.id) runnerRails.push(node);
+    });
     this.animStates.set(frontPanel?.id || `drawer-${Date.now()}`, {
       type: 'drawer',
       group,
       current: 0,
       target: 0,
-      max: drawDepth * 0.8,
+      max: frontPanel?.runnerTravel || drawDepth * 0.8,
+      runnerRails,
     });
   }
 
@@ -425,6 +432,7 @@ export class CabinetViewport {
     mesh.receiveShadow = true;
     this._addEdgeHelper(mesh, geometry);
     this._addHoleMarkers(mesh, p);
+    addHardwareModels(mesh, p);
     for (const path of p.detailMachining ? [] : p.detailPaths || []) {
       const points = path.map(point => new THREE.Vector3(point.x - p.cutWidth / 2, point.y - p.cutHeight / 2, -p.sizeZ / 2 - 0.3));
       const DetailLine = p.detailPathsClosed === false ? THREE.Line : THREE.LineLoop;
@@ -625,8 +633,10 @@ export class CabinetViewport {
       }
       if (state.type === 'door') {
         this._applyConcealedHingeMotion(state);
+        for (const model of state.closedHardware || []) model.visible = state.current < 0.001;
       } else if (state.type === 'drawer') {
         state.group.position.z = -state.current;
+        for (const rail of state.runnerRails || []) rail.position.z = rail.userData.baseZ - state.current * (rail.userData.travelFactor ?? 0.5);
       }
     }
 

@@ -84,3 +84,33 @@ Source: [Accuride 3832E/3834E drawing and installation instructions](https://www
 Inset doors require inset (fully cranked) hinges rather than standard overlay hinges. Select **Blum 71B3750 — 110° inset hinge** and **Blum frameless inset — 37/32 + door setback** under Hardware. These are editable starting dimensions, not a verified hardware assembly.
 
 The cup starts at Ø35 × 13 mm, with its centre 22 mm from the edge. The inset plate uses one pair of holes 32 mm apart; its actual setback is the editable 37 mm base offset + door thickness + 1.5 mm. Changing door thickness updates drilling, the machined view and STEP export. Changing the pattern to Custom uses the entered offset directly. Face-frame cabinets need their own hinge arrangement; this preset omits plate bores there. Cup fixing screws are not modelled. Check plate height, edge distance, clearance and a physical trial before machining.
+
+## Manufacturer CAD in the Hardware Library
+
+First integrated model: **Hettich Anzio 1160018**, 128 mm centres. Select it under **Hardware → Handles / knobs** to use its manufacturer mesh in the cabinet and kitchen previews. Mounting axes are aligned to the actual generated bores; the mesh moves with the front. Generic pulls remain dimensional presets without manufacturer geometry. Editing away from the selected preset removes its manufacturer model rather than stretching it.
+
+Sources checked 2026-11-03:
+
+| Family | Manufacturer CAD and planning data | Next step |
+| --- | --- | --- |
+| Handles | [Hettich CAD packages](https://www.hettich.com/en-no/services/hettich-cad/cad-downloads), including STEP handles; [Anzio 1160018](https://shop.hettich.com/us_EN/ProDecor-handle-collection/NEW-MODERN-style-world/Handle-Anzio%2C-drill-hole-spacing-128-mm%2C-L-138-mm%2C-W-10-mm%2C-H-32-mm%2C-brushed-stainless-steel/p/1160018) integrated | More exact product numbers and finishes, each with checked mounting centres |
+| Hinges and plates | [Blum CAD/CAM Data Service](https://www.blum.com/eu/en/services/industrial-production/cad-cam-dataservice/) and [Hettich CAD](https://www.hettich.com/en-us/services/hettich-cad) | Sensys 9071205 / 9071575 integrated for the supported 18 mm construction; additional variants and articulated motion remain |
+| Slides | [Accuride 3832E CAD](https://ws.3dexchange.net/ACCURIDE/catalog/65989/57832) (sign-in required); [Hettich runner CAD packages](https://www.hettich.com/en-no/services/hettich-cad/cad-downloads); [Blum Product Database](https://www.blum.com/us/en/services/e-services/productdatabase/) | 400–600 mm manufacturer CAD integrated with separate rail stages; other lengths retain simplified previews |
+
+Keep visual models, manufacturing dimensions and animation references together for each exact product. CAD appearance alone is insufficient evidence for drilling: record the mounting drawing and revision and check it against generated holes. Retain custom dimensions and hide an incompatible manufacturer mesh. Undermount runners also require the correct drawer box, rear preparation and locking devices.
+
+See [model provenance and conversion](../assets/hardware/models/README.md). Manufacturer asset redistribution terms must be checked before publishing; physical fitting remains pending.
+
+The Accuride preview is available under its existing preset. 400–600 mm lengths use exact manufacturer CAD. For 500 mm, supplied poses give 505.9 mm moving-rail and 216.7 mm intermediate travel, without scaling to the nominal 508 mm. Its mounting axes use the generated holes, including inset setbacks and mirrored sides. Custom/invalid patterns do not receive the branded preview. For other lengths, profiles, slot outlines and intermediate-rail motion are illustrative. This is not a collision simulation. Do not infer clone compatibility from appearance. North American 3832E and European DZ3832 are separate catalogue variants until checked against exact drawings.
+
+### First matched hinge and plate
+
+Select **Hettich Sensys 9071205 — 18 mm frameless set** to apply the screw-on TH52 hinge and its **9071575 D0, 37 × 32 mm screw-on plate** together. Manufacturer STEP models are included for both. The cup is Ø35 × 12.8 mm, centred 21.5 mm from the door edge (4 mm cup-edge distance); two Ø2.5 × 10 mm fixing pilots are spaced 52 mm, with their line 5.5 mm away from the edge from the cup centre. The plate uses two Ø3 × 12 mm starting pilots, 32 mm apart at a 37 mm setback. Choose and test pilot sizes/screw lengths for the actual stock.
+
+This first matched assembly is limited to 18 mm frameless carcass/door, full overlay and a 3 mm gap. Other constructions receive a warning and no manufacturer assembly model or added cup-fixing pilots. Edited cup/plate settings remain custom. The original hinge CAD is a single rigid shape: it is shown with the door closed and hidden during opening; the plate stays on the side panel. Articulated hinge motion and physical fitting are pending.
+
+Sources: [Sensys 9071205 specifications](https://shop.hettich.com/in_EN/Hinges/Sensys-hinge-series/Hinges/Sensys-110%C2%B0-hinge-with-integrated-silent-system-%28Sensys-8645i%29%2C-nickel-plated%2C-overlay%2C-Opening-angle-110%C2%B0%2C-TH-drilling-pattern-52-x-5-5-mm%2C-for-screwing-on-%28-%29/p/9071205), [9071575 mounting plate specifications](https://shop.hettich.com/in_EN/Hinges/Intermat-hinge-series/Mounting-plates/Mounting-plates-for-Sensys-and-Intermat/Cross-mounting-plate-with-oblong-hole-height-adjustment%2C-nickel-plated%2C-Hole-line-37-x-32-mm%2C-for-screwing-on%2C-distance-0-0-mm/p/9071575), [public CAD packages](https://www.hettich.com/en-no/services/hettich-cad/cad-downloads). Retrieved 2026-11-03 without signup.
+
+The [original TH52 drilling DXF](https://web2.hettich.com/hbh/addon/cad/9071205_2d.zip) establishes the fixing-line direction relative to the door edge. The [plate-distance calculation](https://web2.hettich.com/hbh/addon/montage/300201_Distanz_B12_5_DE.pdf) gives D=C+12.5−A: C=4 mm and A=16.5 mm give the selected D0 plate.
+
+For 450/550 mm, the 259 mm cabinet pilot is omitted because it falls in steel in the exact supplier CAD. Remaining pilots are shared by the drawing and CAD; see [conversion checks and travel table](../assets/hardware/models/README.md#additional-verified-lengths). Saved presets regenerate the corrected subset; inspect updated outputs before machining.

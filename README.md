@@ -43,6 +43,12 @@ Material-aware nesting helps separate parts by sheet stock so machining output s
 
 The **Hardware** library includes cup/plate patterns, 5 mm and ¼-inch shelf supports, metric/imperial pull centres, knobs, Accuride 3832E runner fit and matched carcass dowels. Presets retain custom overrides and saved-project dimensions. Pocket screws are a manual-jig assembly option.
 
+Select **Hettich Anzio 1160018 — 128 mm / stainless steel** under Handles / knobs for the first manufacturer CAD model in the 3D view. Its fixing axes follow the generated holes, and it moves with the door or drawer. The kitchen view also displays it. Generic pulls retain their existing drilling settings. More hardware variants remain planned; see [model provenance](assets/hardware/models/README.md).
+
+The **Accuride 3832E** preset includes manufacturer CAD for **400, 450, 500, 550 and 600 mm (3832-E16/E18/E20/E22/E24)**, aligned to its panel drilling, with separate fixed, intermediate and moving rails. Opening follows each supplied CAD pose; for 500 mm this is 505.9 mm versus nominal 508 mm. Other lengths use simplified drawing-based previews. Physical fit and clone compatibility remain unverified.
+
+The **Hettich Sensys 9071205 — 18 mm frameless set** automatically selects its **9071575 D0 plate**. For 18 mm frameless carcasses and doors with full overlay and a 3 mm gap, it adds the 52 × 5.5 mm cup-fixing pilots and matched plate pilots, plus manufacturer CAD for both parts. The plate remains fixed; hinge CAD hides during opening because its articulated motion is not yet modelled. Other constructions receive a warning and no Sensys CAD/fixing pilots. Physical fit is pending.
+
 Manufacturing ZIPs include hardware counts and a separate `machining-schedule.json` for mating face/edge operations. Explicit face/depth holes use separate DXF layers; edge bores require a separate setup and are never exported as face circles. Accuride fit does not generate mounting holes. Undermount and connector families are tracked for model-specific implementation.
 
 See [hardware research, supported patterns and export setup](docs/hardware-library.md).

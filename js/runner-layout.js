@@ -16,9 +16,17 @@ export function runnerPattern(length) {
   const row = table[length];
   if (!row) return null;
   return {
-    cabinet: [...new Set([35, 35 + (length <= 300 ? 96 : 128), ...row.slice(6).filter(x => x != null).map(x => 35 + x)])],
+    // The 450/550 mm supplier CAD has no opening at 259 mm; retain only locations shared with the drawing.
+    cabinet: [...new Set([35, 35 + (length <= 300 ? 96 : 128), ...row.slice(6).filter(x => x != null).map(x => 35 + x)])]
+      .filter(x => !([450,550].includes(length) && x === 259)),
     drawer: [...new Set([17.8, 60.5, 163, ...row.slice(0, 5).filter(x => x != null).map(x => 35 + x)])],
   };
+}
+
+// 3700-9464 R10-0616, page 1: travel is not always the nominal slide length.
+export function runnerTravel(length) {
+  return { 250:254, 300:305, 350:356, 400:406, 450:457,
+    500:508, 550:559, 600:610, 650:660, 700:711 }[length] ?? null;
 }
 
 export function runnerSettings(c) {

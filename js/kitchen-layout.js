@@ -1,7 +1,8 @@
-import { computePanels } from './cabinet-math.js?v=20261103m';
+import { computePanels } from './cabinet-math.js?v=20261103r';
 import { requestCad } from './cad-client.js?v=20261103s';
 import { basicPanelGeometry, machinedPanelGeometry } from './panel-mesh.js';
 import { createPanelMaterial, disposePanelMaterial } from './viewport-materials.js';
+import { addHardwareModels } from './hardware-view.js?v=20261103d';
 import { formatLength, isImperial, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -470,6 +471,7 @@ class KitchenLayoutViewport {
       part.rotation.y = Math.PI;
       part.userData.isCabinetPanel = true;
       this._addPanelEdges(part);
+      addHardwareModels(part, panel);
       mesh.add(part);
       panelMeshes.set(panel.id, { part, panel });
     }
@@ -480,7 +482,7 @@ class KitchenLayoutViewport {
         const entry = panelMeshes.get(model.id);
         if (!entry) continue;
         const { part, panel } = entry;
-        for (const child of [...part.children]) { part.remove(child); disposeObject(child); }
+        for (const child of [...part.children]) if (!child.userData.isHardwareModel) { part.remove(child); disposeObject(child); }
         part.geometry.dispose();
         part.geometry = machinedPanelGeometry(panel, model);
         this._addPanelEdges(part);

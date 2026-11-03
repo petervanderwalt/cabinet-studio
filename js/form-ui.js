@@ -1,11 +1,11 @@
-import { runnerPattern, runnerSettings } from './runner-layout.js';
+import { runnerPattern, runnerSettings } from './runner-layout.js?v=20261103b';
 import { frontLayout } from './front-layout.js';
 import { additionalDrawerHeight, distributeDrawerHeights } from './drawer-heights.js';
 import { dimension, formatLength, parseLength, getUnits, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 // form-ui.js - Build and manage the cabinet config form
-import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261103m';
+import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261103r';
 import { applyGlobalMaterialSelections, defaultStockMaterials } from './material-presets.js?v=20261020f';
-import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261103i';
+import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261103n';
 
 const SECTION_ICONS = {
   'Cabinet Type': 'fa-cube',
@@ -880,6 +880,11 @@ export class CabinetForm {
         drawing.href = preset.drawing; drawing.target = '_blank'; drawing.rel = 'noopener noreferrer';
         drawing.textContent = ' Machining diagram'; note.append(drawing);
       }
+      if (preset?.cadSource) {
+        const cad = document.createElement('a');
+        cad.href = preset.cadSource; cad.target = '_blank'; cad.rel = 'noopener noreferrer';
+        cad.textContent = ' Manufacturer CAD'; note.append(cad);
+      }
       select.addEventListener('change', event => {
         event.stopPropagation();
         this.config = this.getConfig();
@@ -981,6 +986,7 @@ export class CabinetForm {
       'south-africa': { front: 20, rear: 32, spacing: 32, second: true },
       'blum-inset': { front: 37, rear: 32, spacing: 32, second: false },
       blum: { front: 37, rear: 32, spacing: 32, second: false },
+      'hettich-sensys': { front:37,rear:32,spacing:32,second:false },
     };
     const hw = this.config.hardware;
     const matchingPattern = Object.entries(patterns).find(([, p]) => (
@@ -993,9 +999,10 @@ export class CabinetForm {
       { value: 'south-africa', label: 'South Africa (2 × 2)' },
       { value: 'blum', label: 'Blum frameless (2 × 1)' },
       { value: 'blum-inset', label: 'Blum frameless inset (2 × 1)' },
+      { value: 'hettich-sensys', label:'Hettich Sensys D0 (37 × 32)' },
       { value: 'custom', label: 'Other / Custom' },
     ], { 'data-key': 'hardware.hingePlatePattern', 'aria-label': 'Hinge plate pattern' });
-    pattern.value = hw.hingePlatePattern === 'custom' ? 'custom' : hw.hingePlatePattern === 'blum-inset' ? 'blum-inset' : (matchingPattern?.[0] === 'blum-inset' ? 'blum' : matchingPattern?.[0] || 'custom');
+    pattern.value = hw.hingePlatePattern === 'hettich-sensys' ? 'hettich-sensys' : hw.hingePlatePattern === 'custom' ? 'custom' : hw.hingePlatePattern === 'blum-inset' ? 'blum-inset' : (matchingPattern?.[0] === 'blum-inset' ? 'blum' : matchingPattern?.[0] || 'custom');
     pattern.addEventListener('change', () => {
       const preset = patterns[pattern.value];
       if (!preset) return;

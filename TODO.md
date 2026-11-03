@@ -2,6 +2,24 @@
 
 Planning backlog; unchecked items are proposed work, not available features.
 
+## Hardware Library and kitchen expansion
+
+Agreed 2026-11-03 after reviewing the Kitchen Maker video. PDF drawings and edge-band deductions are not requested; keep them out of this work.
+
+- [ ] **Hardware Library:** manufacturer CAD for exact handle, hinge/plate and drawer-slide variants, paired with their mounting drawings. Use the same mounting references for drilling and 3D placement; retain product numbers, source links and drawing revisions. Start with a real handle, then complete matched hinges/plates and slides.
+- [x] **First manufacturer model:** Hettich Anzio 1160018 pull, original STEP plus lightweight viewer mesh; 128 mm mounting axes checked against generated bores. Cabinet/kitchen rendering and door/drawer attachment implemented; physical fit remains untested.
+- [x] **First matched hinge CAD:** Hettich Sensys 9071205 + 9071575 D0 screw-on plate, original STEP and checked meshes, cup/plate fixing pilots and paired selection. Initial assembly limited to 18 mm frameless carcass/door, full overlay and 3 mm gap. Hinge CAD shows closed only; plate stays fixed.
+- [ ] **Hinge motion and fit:** articulated linkage, additional stock/overlay combinations, Blum equivalents and physical trial assembly. Do not animate an entire rigid hinge mesh with the door.
+- [x] **Accuride 3832E preview:** fixed, intermediate and drawer rails aligned to existing pilot centres, with length-specific travel. 400, 450, 500, 550 and 600 mm use manufacturer CAD and supplied rail poses; other lengths remain simplified.
+- [ ] **Accuride manufacturer CAD:** 400–600 mm integrated; obtain the remaining exact North American 3832E assemblies from the [Accuride 3DX catalogue](https://ws.3dexchange.net/ACCURIDE/catalog/65989/57832) (sign-in required), then check each length's model against drawing 3700-9464 R10-0616. The European DZ3832 download requires a contact form and must not be assumed identical.
+- [ ] **Hardware priority:** Accuride 3832E first, then matched Blum hinges/plates and TANDEM/MOVENTO, then exact Richelieu models identified by testers. Keep clone patterns custom until measured against the selected drawing.
+- [ ] **Blind corners:** left/right blind panels, door handing, access clearances and compatible corner fittings.
+- [ ] **Appliance housings:** tall oven units, dishwasher bays and other appliance openings with model-specific clearances.
+- [ ] **Mixed fronts:** doors and drawers within the same cabinet, with matching internal divisions and hardware.
+- [ ] **Undermount drawers:** complete model-specific box construction, runners, locking devices and mounting preparation; see the existing hardware item below.
+- [ ] **Handle-free fronts:** J/G profiles and push-to-open, including the required panel recesses and clearances.
+- [ ] **Kitchen layout components:** worktops, fillers, end panels, sinks, hobs, appliance envelopes and storage fittings; include fit/clearance checks and wall placement.
+
 ## Hardware library progress
 
 - [x] Shared preset library for hinge cups/plates, shelf supports, pulls/knobs, runner fit and carcass joinery, with persisted custom dimensions and source references.
@@ -35,11 +53,10 @@ Suggested delivery order: matched dowel joints and setup reporting → Cabineo �
 
 These are proposals informed by Microvellum's published workflows, not a commitment to feature parity. Check existing behaviour before scoping each item; Cabinet Studio already has parametric cabinets, hardware drilling, material-aware nesting, DXFs and manufacturing ZIP exports.
 
-- [ ] **Shop and assembly drawings:** dimensioned part sheets and cabinet elevations/sections, matching part IDs, joint callouts and assembly references.
 - [ ] **Hardware BOM:** connector, hinge, runner and handle quantities tied to selected hardware and cabinet copy counts; include purchase references and machining drawing revisions.
 - [ ] **Reusable cabinet presets:** save proven construction and hardware settings as named templates, retaining project-specific overrides.
-- [ ] **Production reporting:** printable cut lists, edge-banding totals, stock summaries and assembly labels using consistent part IDs across drawings, nesting and exports.
-- [ ] **Basic costing:** optional user-entered sheet, hardware and edge-banding prices; distinguish material estimates from later labour/machine-time costing.
+- [ ] **Production reporting:** printable cut lists, stock summaries and assembly labels using consistent part IDs across nesting and exports.
+- [ ] **Basic costing:** optional user-entered sheet and hardware prices; distinguish material estimates from later labour/machine-time costing.
 - [ ] **Machine-specific output:** assess CAM handoff and operation/setup metadata before considering toolpaths or post-processors for particular machines.
 
 ## Research references

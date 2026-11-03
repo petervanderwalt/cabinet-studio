@@ -1,5 +1,5 @@
 import { frontLayout } from './front-layout.js';
-import { runnerSettings } from './runner-layout.js';
+import { runnerSettings } from './runner-layout.js?v=20261103b';
 // Dimensions are millimetres. Presets apply only on selection; stored dimensions remain authoritative.
 const sources = {
   blum: 'https://publications.blum.com/2024/catalogue/en/150/',
@@ -33,6 +33,16 @@ export const HARDWARE_LIBRARY = [
     note: 'Cam 13957 + bolt 9047861: Ø15 × 13.4 mm pocket, 34 mm centre offset, Ø8 edge passage, Ø5 × 11.5 mm bolt pilot. 18 mm stock only. Separate edge setup; test fit required.',
     values: { 'hardware.joineryType': 'rastex-18', 'hardware.connectorEndOffset': 37, 'hardware.connectorMaxSpacing': 160 } },
   { id: 'cup-35', category: 'hingeCup', label: '35 mm concealed cup — custom fixing', status: 'drilling', source: sources.blum, note: 'Cup only: 4.5 mm edge distance and 13 mm depth are editable starting values. Verify hinge SKU; screw/dowel fixing holes are not generated.', values: { 'hardware.hingeBoreDiameter': 35, 'hardware.hingeBoreInset': 22, 'hardware.hingeBoreDepth': 13 } },
+  { id:'hinge-hettich-9071205', category:'hingeCup', label:'Hettich Sensys 9071205 — 18 mm frameless set', status:'drilling',
+    pairedPreset:'plate-hettich-9071575', cadSource:'https://www.hettich.com/en-no/services/hettich-cad/cad-downloads',
+    source:'https://shop.hettich.com/in_EN/Hinges/Sensys-hinge-series/Hinges/Sensys-110%C2%B0-hinge-with-integrated-silent-system-%28Sensys-8645i%29%2C-nickel-plated%2C-overlay%2C-Opening-angle-110%C2%B0%2C-TH-drilling-pattern-52-x-5-5-mm%2C-for-screwing-on-%28-%29/p/9071205',
+    note:'Matched screw-on hinge and D0 plate. Initial assembly: 18 mm frameless carcass and door, full overlay, 3 mm gap. Ø35 × 12.8 mm cup, 4 mm cup edge distance; two Ø2.5 × 10 mm fixing pilots at 52 × 5.5 mm. Manufacturer hinge CAD shows with the door closed; articulated motion is pending. Trial fit required.',
+    values:{'hardware.hingeBoreDiameter':35,'hardware.hingeBoreInset':21.5,'hardware.hingeBoreDepth':12.8} },
+  { id:'plate-hettich-9071575', category:'hingePlate', label:'Hettich 9071575 — D0 / 37 × 32 mm screw-on plate', status:'drilling',
+    cadSource:'https://www.hettich.com/en-no/services/hettich-cad/cad-downloads',
+    source:'https://shop.hettich.com/in_EN/Hinges/Intermat-hinge-series/Mounting-plates/Mounting-plates-for-Sensys-and-Intermat/Cross-mounting-plate-with-oblong-hole-height-adjustment%2C-nickel-plated%2C-Hole-line-37-x-32-mm%2C-for-screwing-on%2C-distance-0-0-mm/p/9071575',
+    note:'0 mm plate; one pair 32 mm apart at 37 mm setback. Ø3 × 12 mm pilots are starting values for the specified Ø4.5 × 16 mm wood screws; verify pilot fit in your material. Select the matched Sensys hinge for assembly CAD and cup-fixing pilots.',
+    values:{'hardware.hingePlatePattern':'hettich-sensys','hardware.hingePlateFrontHoleOffset':37,'hardware.hingePlateRearHoleOffset':32,'hardware.hingePlateHoleSpacing':32,'hardware.hingePlateSecondRow':false,'hardware.hingePlateDiameter':3,'hardware.hingePlateDepth':12} },
   { id: 'cup-blum-inset', category: 'hingeCup', label: 'Blum 71B3750 — 110° inset hinge', status: 'drilling', source: 'https://www.wurthmachinery.com/skin/common_files/files/specs/B71B375_Datasheet.pdf', note: 'Fully cranked inset hinge, frameless cabinets. Ø35 × 13 mm cup; 4.5 mm edge distance is an editable starting point (catalogue range 3–7 mm). Select the inset plate preset too. Cup fixing holes are not generated; verify plate height and trial fit.', values: { 'hardware.hingeBoreDiameter': 35, 'hardware.hingeBoreInset': 22, 'hardware.hingeBoreDepth': 13 } },
   { id: 'plate-blum-inset', category: 'hingePlate', label: 'Blum frameless inset — 37/32 + door setback', status: 'drilling', source: 'https://publications.blum.com/2022/catalogue/en/89/', note: 'For fully cranked inset hinges. One 32 mm pair, base setback 37 mm plus door thickness + 1.5 mm, updated automatically. Start with a 0 mm plate; verify the selected hinge/plate combination. Edit the base offset below to customize.', values: { 'hardware.hingePlatePattern': 'blum-inset', 'hardware.hingePlateFrontHoleOffset': 37, 'hardware.hingePlateRearHoleOffset': 32, 'hardware.hingePlateHoleSpacing': 32, 'hardware.hingePlateSecondRow': false } },
   { id: 'plate-sa', category: 'hingePlate', label: 'South Africa — existing 20/32 four-hole pattern', status: 'drilling', note: 'Existing shop pattern; confirm the actual plate. Cup settings remain independent.', values: { 'hardware.hingePlatePattern': 'south-africa', 'hardware.hingePlateFrontHoleOffset': 20, 'hardware.hingePlateRearHoleOffset': 32, 'hardware.hingePlateHoleSpacing': 32, 'hardware.hingePlateSecondRow': true } },
@@ -41,13 +51,19 @@ export const HARDWARE_LIBRARY = [
   { id: 'shelf-quarter-system32', category: 'shelfPins', label: '¼-inch pins — 32 mm pitch / 37 mm setback', status: 'drilling', source: sources.shelfImperial, note: '¼ inch is exactly 6.35 mm. Confirm pin insertion depth.', values: { 'hardware.shelfPinDiameter': 6.35, 'hardware.shelfPinSpacing': 32, 'hardware.shelfPinSetback': 37, 'hardware.shelfPinDepth': 10 } },
   { id: 'handle-none', category: 'handles', label: 'No handle drilling', status: 'drilling', values: { 'hardware.handleType': 'none' } },
   { id: 'handle-knob', category: 'handles', label: 'Knob — one fixing hole', status: 'drilling', note: 'Choose clearance diameter for the actual fixing screw.', values: { 'hardware.handleType': 'knob', 'hardware.handleHoleDiameter': 5 } },
+  { id: 'handle-hettich-1160018', category: 'handles', label: 'Hettich Anzio 1160018 — 128 mm / stainless steel', status: 'drilling',
+    model: 'hettich-1160018', cadSource: 'https://www.hettich.com/en-no/services/hettich-cad/cad-downloads',
+    source: 'https://shop.hettich.com/us_EN/ProDecor-handle-collection/NEW-MODERN-style-world/Handle-Anzio%2C-drill-hole-spacing-128-mm%2C-L-138-mm%2C-W-10-mm%2C-H-32-mm%2C-brushed-stainless-steel/p/1160018',
+    note: 'Manufacturer CAD in the 3D view: 138 × 10 mm, projection 32 mm. Two fixing axes at 128 mm centres; Ø5 mm panel clearance for M4 fixings. Handle thread depth 10 mm; select screw length for panel thickness. Physical fit not yet tested.',
+    values: { 'hardware.handleType': 'pull', 'hardware.handleHoleSpacing': 128, 'hardware.handleHoleDiameter': 5 } },
   ...[76.2, 96, 101.6, 128, 160, 192, 224, 256, 320].map(spacing => ({
     id: `pull-${spacing}`, category: 'handles', label: `Pull — ${spacing === 76.2 ? '3 in (76.2 mm)' : spacing === 101.6 ? '4 in (101.6 mm)' : `${spacing} mm`} centres`,
     status: 'drilling', source: sources.pulls, note: 'Centre spacing preset, not a specific pull model. Use the measured centres; nominal inch equivalents can be rounded in catalogues.',
     values: { 'hardware.handleType': 'pull', 'hardware.handleHoleSpacing': spacing, 'hardware.handleHoleDiameter': 5 },
   })),
   { id: 'runner-3832e', category: 'runners', label: 'Accuride 3832E — side mount + pilot centres', status: 'drilling', source: sources.accuride,
-    note: '12.7 mm side space (+0.8 / −0); select an actual length. Pilot centres from drawing 3700-9464 R10-0616; check the supplied slide before drilling. Edit the dimensions below for custom slides. Face frames need blocking or rear brackets.',
+    cadSource: 'https://ws.3dexchange.net/ACCURIDE/catalog/65989/57832',
+    note: '400, 450, 500, 550 and 600 mm use manufacturer CAD with separate rail stages; other lengths use a simplified preview. 12.7 mm side space (+0.8 / −0). Pilot centres: drawing 3700-9464 R10-0616. Check your supplied slide, especially clones. Custom dimensions remain editable. Face frames need blocking or rear brackets.',
     values: { 'hardware.runnerMode': 'side-mount', 'drawers.sideClearance': 12.7, 'hardware.runnerLength': 500, 'hardware.runnerPattern': 'accuride-3832e', 'hardware.runnerPilotDiameter': 3, 'hardware.runnerPilotDepth': 8, 'hardware.runnerHoleHeight': 31.8 },
     lengths: [250, 300, 350, 400, 450, 500, 550, 600, 650, 700] },
   { id: 'joinery-none', category: 'joinery', label: 'None', status: 'drilling', values: { 'hardware.joineryType': 'none' } },
@@ -63,7 +79,7 @@ export function hardwarePreset(id) { return HARDWARE_LIBRARY.find(p => p.id === 
 export function applyHardwarePreset(config, id) {
   const preset = hardwarePreset(id);
   if (!preset) throw new Error(`Unknown hardware preset: ${id}`);
-  const next = structuredClone(config);
+  const next = preset.pairedPreset ? applyHardwarePreset(config, preset.pairedPreset) : structuredClone(config);
   next.hardware ||= {};
   next.hardware.library = { ...next.hardware.library, [preset.category]: id };
   for (const [path, value] of Object.entries(preset.values)) {
@@ -115,7 +131,8 @@ export function hardwareBom(config, panels) {
   const label = category => selectedHardware(config).find(p => p.category === category)?.label || 'Custom / existing';
   const count = purpose => panels.reduce((sum, p) => sum + (p.holes || []).filter(h => h.purpose === purpose).length, 0);
   const hingeCount = count('hinge-cup');
-  if (hingeCount) rows.push({ item: label('hingePlate'), quantity: hingeCount, unit: 'hinge / plate sets', note: 'Cup fixing screws and plate height must match actual hinge.' });
+  if (hingeCount) rows.push({ item: config.hardware.library?.hingeCup === 'hinge-hettich-9071205'
+    ? `${label('hingeCup')} + ${label('hingePlate')}` : label('hingePlate'), quantity: hingeCount, unit: 'hinge / plate sets', note: 'Cup fixing screws and plate height must match actual hinge.' });
   const fronts = panels.filter(p => p.type === 'door' || p.type === 'drawer');
   const handles = fronts.filter(p => p.holes.some(h => h.purpose === 'handle')).length;
   if (handles) rows.push({ item: label('handles'), quantity: handles, unit: hw.handleType === 'knob' ? 'knobs' : 'pulls' });
