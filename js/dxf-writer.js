@@ -1,6 +1,6 @@
 import { dimension, formatLength, isImperial, toDisplay, stockDimension, unitLabel } from './units.js?v=20261020h';
-import { inferFrontMode } from './cabinet-math.js?v=20261103r';
-import { HARDWARE_CATEGORIES, hardwareBom, selectedHardware } from './hardware-library.js?v=20261103n';
+import { inferFrontMode } from './cabinet-math.js?v=20261105a';
+import { HARDWARE_CATEGORIES, hardwareBom, selectedHardware } from './hardware-library.js?v=20261105a';
 
 const JSZip = window.JSZip;
 

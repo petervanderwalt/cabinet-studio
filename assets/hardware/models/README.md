@@ -6,6 +6,8 @@ Source: [Hettich public CAD packages](https://www.hettich.com/en-no/services/het
 
 Anzio: 128 mm fixing centres, 138 x 10 x 32 mm envelope; 236 triangles. Convert using tools/convert-handle-cad.py. Its mounting axes follow the generated front bores.
 
+The same `STEP_Griffe.zip` package supplies seven further Anzio models, extracted from `Griffe/New_Modern/<part>.stp`: 1160019 (160 mm), 1160020 (224 mm), 1160021 (288 mm), 1160022 (352 mm), 1160023 (480 mm), 1160024 (608 mm) and 1160025 (736 mm). Each original STEP is retained alongside its 236-triangle mesh. The converter verifies both radius-2 mm fixing axes, centre spacing and the full envelope: length = centres + 10 mm, width 10 mm, projection 32 mm. Product dimensions are also listed in the [manufacturer ProDecor data sheet](https://www.hettich.com/fileadmin/Hettich_International/Planning/imos/Informationsblatt_Hettich_ProDecor_Griffkollektion.pdf). Oversized or edited drilling removes the manufacturer mesh instead of scaling it. Physical fit remains untested.
+
 Sensys: 35 mm cup, 12.8 mm depth, 52 x 5.5 mm fixing axes; plate uses 32 mm slot spacing. Converter tools/convert-hinge-cad.py checks these axes; hinge has 1,722 triangles and plate 1,180. Hinge X points away from the left hinge edge, Y up, Z into the cabinet, with origin on the rear door face at the cup centre. Plate origin is at the fixing-pair centre on its mounting face. Right-hand instances reflect X without resizing. See [supported assembly and drilling](../../../docs/hardware-library.md#first-matched-hinge-and-plate). The rigid hinge mesh hides during opening; the plate stays fixed. Articulated motion and physical fitting remain pending.
 
 Copyright remains with Hettich. Manufacturer files are not covered by the application's license; confirm redistribution terms before publishing. Hardware meshes are preview geometry and do not enter panel nesting or panel-solid STEP exports.
@@ -18,7 +20,7 @@ Regenerate with `python tools/convert-accuride-cad.py tmp/hardware/Accuride_3832
 
 The supplied open pose gives 505.912 mm moving travel and 216.733 mm intermediate travel. The 500 mm preview uses those values; the published nominal travel is 508 mm. Animation interpolates the two poses and is not a bearing, collision or load simulation.
 
-Lengths outside 400–600 mm retain simplified three-stage previews with half-travel intermediate motion. Their published travel is 250→254, 300→305, 350→356, 650→660 and 700→711 mm. Source: [drawing 3700-9464 R10-0616](https://www.accuride.com/media/amasty/amfile/attach/516dd0135bf3d6a5f7d76cafd3f74da0.pdf). Nominal side space is 12.7 mm, with +0.8/−0 tolerance. Custom or invalid patterns do not receive a branded preview.
+All supported 250–700 mm lengths now use their own original STEP and converted meshes. Reference drawing: [3700-9464 R10-0616](https://www.accuride.com/media/amasty/amfile/attach/516dd0135bf3d6a5f7d76cafd3f74da0.pdf). Nominal side space is 12.7 mm, +0.8/−0. Custom or invalid patterns receive no branded preview.
 
 Copyright remains with Accuride. Manufacturer files are not covered by the application's license; confirm redistribution terms before publishing. Physical fit and clone compatibility remain unverified. European DZ3832 is a separate catalogue variant until compared against its exact drawing.
 
@@ -38,3 +40,18 @@ The same catalogue now supplies exact 3832-E16 (400 mm), E18 (450 mm), E22 (550 
 The E18/E22 fixed rail CAD has no opening at 259 mm, although the drawing's F=224 mm column implies that location. The preset therefore uses the shared subset: [35,163,387] for 450 mm and [35,163,483] for 550 mm. No new hole is inferred from appearance. Existing saved projects using this preset regenerate these pilot subsets; inspect regenerated manufacturing output before machining.
 
 Each moving rail registers from its own front datum. The E22 supplied closed pose has a 0.762 mm front offset; registration removes that pose offset without resizing the part. One detached E22 CAD fragment smaller than 2 mm on every axis is omitted from the preview, recorded as `omittedSmallFragments`; the original STEP remains intact. Actual screws, physical fit and redistribution permission remain unchecked.
+
+
+### Remaining lengths completed 2026-11-04
+
+Exact catalogue downloads 3832-E10/E12/E14/E26/E28 complete all ten supported sizes. The converter checks every selected 3 mm wood pilot perimeter against steel at the mounting web. The E10/E12 mounting holes differ from the older family drawing: E10 cabinet [35,195], drawer [17.8,35,131,227]; E12 cabinet [35,259], drawer [17.8,35,131,277] mm. Match the supplied physical slide before machining. Original STEP, mounting references, source SHA-256 and measured travel are retained per model.
+
+| Model | Nominal length | Moving travel | Intermediate travel |
+| --- | --- | --- | --- |
+| 3832-E10 | 250 mm | 243.586 mm | 96.557 mm |
+| 3832-E12 | 300 mm | 304.627 mm | 145.618 mm |
+| 3832-E14 | 350 mm | 355.905 mm | 144.602 mm |
+| 3832-E26 | 650 mm | 660.324 mm | 343.306 mm |
+| 3832-E28 | 700 mm | 711.021 mm | 342.493 mm |
+
+The E10 supplied open pose is 10.414 mm short of nominal published 254 mm travel. This is a property of the downloaded pose, not a measured physical stroke; animation preserves that pose without stretching. The converter permits a discrepancy below 5% of nominal length and requires intermediate travel between zero and moving travel. Physical travel remains untested.

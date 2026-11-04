@@ -95,13 +95,13 @@ Sources checked 2026-11-03:
 | --- | --- | --- |
 | Handles | [Hettich CAD packages](https://www.hettich.com/en-no/services/hettich-cad/cad-downloads), including STEP handles; [Anzio 1160018](https://shop.hettich.com/us_EN/ProDecor-handle-collection/NEW-MODERN-style-world/Handle-Anzio%2C-drill-hole-spacing-128-mm%2C-L-138-mm%2C-W-10-mm%2C-H-32-mm%2C-brushed-stainless-steel/p/1160018) integrated | More exact product numbers and finishes, each with checked mounting centres |
 | Hinges and plates | [Blum CAD/CAM Data Service](https://www.blum.com/eu/en/services/industrial-production/cad-cam-dataservice/) and [Hettich CAD](https://www.hettich.com/en-us/services/hettich-cad) | Sensys 9071205 / 9071575 integrated for the supported 18 mm construction; additional variants and articulated motion remain |
-| Slides | [Accuride 3832E CAD](https://ws.3dexchange.net/ACCURIDE/catalog/65989/57832) (sign-in required); [Hettich runner CAD packages](https://www.hettich.com/en-no/services/hettich-cad/cad-downloads); [Blum Product Database](https://www.blum.com/us/en/services/e-services/productdatabase/) | 400–600 mm manufacturer CAD integrated with separate rail stages; other lengths retain simplified previews |
+| Slides | [Accuride 3832E CAD](https://ws.3dexchange.net/ACCURIDE/catalog/65989/57832) (sign-in required); [Hettich runner CAD packages](https://www.hettich.com/en-no/services/hettich-cad/cad-downloads); [Blum Product Database](https://www.blum.com/us/en/services/e-services/productdatabase/) | All ten supported 250–700 mm manufacturer CAD assemblies integrated with separate rail stages |
 
 Keep visual models, manufacturing dimensions and animation references together for each exact product. CAD appearance alone is insufficient evidence for drilling: record the mounting drawing and revision and check it against generated holes. Retain custom dimensions and hide an incompatible manufacturer mesh. Undermount runners also require the correct drawer box, rear preparation and locking devices.
 
 See [model provenance and conversion](../assets/hardware/models/README.md). Manufacturer asset redistribution terms must be checked before publishing; physical fitting remains pending.
 
-The Accuride preview is available under its existing preset. 400–600 mm lengths use exact manufacturer CAD. For 500 mm, supplied poses give 505.9 mm moving-rail and 216.7 mm intermediate travel, without scaling to the nominal 508 mm. Its mounting axes use the generated holes, including inset setbacks and mirrored sides. Custom/invalid patterns do not receive the branded preview. For other lengths, profiles, slot outlines and intermediate-rail motion are illustrative. This is not a collision simulation. Do not infer clone compatibility from appearance. North American 3832E and European DZ3832 are separate catalogue variants until checked against exact drawings.
+The Accuride preview is available under its existing preset. All supported 250–700 mm lengths use exact manufacturer CAD. For 500 mm, supplied poses give 505.9 mm moving-rail and 216.7 mm intermediate travel, without scaling to the nominal 508 mm. Its mounting axes use the generated holes, including inset setbacks and mirrored sides. Custom/invalid patterns do not receive the branded preview. Rail motion interpolates the supplied closed/open poses. This is not a collision simulation. Do not infer clone compatibility from appearance. North American 3832E and European DZ3832 are separate catalogue variants until checked against exact drawings.
 
 ### First matched hinge and plate
 
@@ -114,3 +114,8 @@ Sources: [Sensys 9071205 specifications](https://shop.hettich.com/in_EN/Hinges/S
 The [original TH52 drilling DXF](https://web2.hettich.com/hbh/addon/cad/9071205_2d.zip) establishes the fixing-line direction relative to the door edge. The [plate-distance calculation](https://web2.hettich.com/hbh/addon/montage/300201_Distanz_B12_5_DE.pdf) gives D=C+12.5−A: C=4 mm and A=16.5 mm give the selected D0 plate.
 
 For 450/550 mm, the 259 mm cabinet pilot is omitted because it falls in steel in the exact supplier CAD. Remaining pilots are shared by the drawing and CAD; see [conversion checks and travel table](../assets/hardware/models/README.md#additional-verified-lengths). Saved presets regenerate the corrected subset; inspect updated outputs before machining.
+
+
+#### Short-slide CAD differences
+
+The exact E10/E12 STEP openings differ from family drawing 3700-9464 R10-0616. The 250 mm preset uses cabinet depths [35,195] and drawer depths [17.8,35,131,227] mm. The 300 mm preset uses cabinet [35,259] and drawer [17.8,35,131,277] mm. These are checked CAD mounting locations; do not use these patterns for a supplied slide matching a different drawing revision. Previously saved presets regenerate these corrected locations. The 250 mm supplied open pose has 243.586 mm moving travel, versus the nominal 254 mm; the preview uses the CAD pose without stretching it.

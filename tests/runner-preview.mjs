@@ -61,12 +61,14 @@ for (const length of [250,300,350,400,450,500,550,600,650,700]) {
 }
 assert.equal(runnerTravel(333),null);
 assert.equal(runnerTravel(500),508);
-assert.deepEqual(Object.keys(ACCURIDE_MODELS),['400','450','500','550','600']);
+assert.deepEqual(Object.keys(ACCURIDE_MODELS),['250','300','350','400','450','500','550','600','650','700']);
+assert.deepEqual(runnerPattern(250),{cabinet:[35,195],drawer:[17.8,35,131,227]});
+assert.deepEqual(runnerPattern(300),{cabinet:[35,259],drawer:[17.8,35,131,277]});
 assert.deepEqual(runnerPattern(450).cabinet,[35,163,387]);
 assert.deepEqual(runnerPattern(550).cabinet,[35,163,483]);
 for(const [length,cad] of Object.entries(ACCURIDE_MODELS)) {
   assert.equal(cad.length,Number(length));
-  assert.ok(Math.abs(cad.travel-runnerTravel(length))<5);
+  assert.ok(Math.abs(cad.travel-runnerTravel(length))<Number(length)*0.05);
   assert.ok(cad.intermediateTravel>0 && cad.intermediateTravel<cad.travel);
   for(const model of Object.values(cad.stages)) {
     assert.equal(model.positions.length%9,0);
@@ -95,4 +97,13 @@ middle.userData.travelFactor=ACCURIDE_3832_E20.intermediateTravel/ACCURIDE_3832_
 state.target=ACCURIDE_3832_E20.travel;
 for(let i=0;i<60;i++)frame();
 near(middle.position.z,252-ACCURIDE_3832_E20.intermediateTravel);
+for(const cad of Object.values(ACCURIDE_MODELS)) {
+  state.current=0; state.target=cad.travel;
+  middle.userData.travelFactor=cad.intermediateTravel/cad.travel;
+  for(let i=0;i<60;i++)frame();
+  near(state.group.position.z,-cad.travel); near(middle.position.z,252-cad.intermediateTravel);
+  state.target=0;
+  for(let i=0;i<60;i++)frame();
+  near(state.group.position.z,0);near(middle.position.z,252);
+}
 console.log('PASS: 20 runner configurations, mounting-axis alignment on both sides, exact travel, save/load, invalid/custom guards, extend/retract animation');

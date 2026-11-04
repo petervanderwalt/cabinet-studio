@@ -1,5 +1,5 @@
 import { frontLayout } from './front-layout.js';
-import { runnerSettings } from './runner-layout.js?v=20261103b';
+import { runnerSettings } from './runner-layout.js?v=20261105a';
 // Dimensions are millimetres. Presets apply only on selection; stored dimensions remain authoritative.
 const sources = {
   blum: 'https://publications.blum.com/2024/catalogue/en/150/',
@@ -56,6 +56,12 @@ export const HARDWARE_LIBRARY = [
     source: 'https://shop.hettich.com/us_EN/ProDecor-handle-collection/NEW-MODERN-style-world/Handle-Anzio%2C-drill-hole-spacing-128-mm%2C-L-138-mm%2C-W-10-mm%2C-H-32-mm%2C-brushed-stainless-steel/p/1160018',
     note: 'Manufacturer CAD in the 3D view: 138 × 10 mm, projection 32 mm. Two fixing axes at 128 mm centres; Ø5 mm panel clearance for M4 fixings. Handle thread depth 10 mm; select screw length for panel thickness. Physical fit not yet tested.',
     values: { 'hardware.handleType': 'pull', 'hardware.handleHoleSpacing': 128, 'hardware.handleHoleDiameter': 5 } },
+  ...[[1160019,160],[1160020,224],[1160021,288],[1160022,352],[1160023,480],[1160024,608],[1160025,736]].map(([part,spacing])=>({
+    id:`handle-hettich-${part}`,category:'handles',label:`Hettich Anzio ${part} — ${spacing} mm / stainless steel`,status:'drilling',
+    model:`hettich-${part}`,cadSource:'https://www.hettich.com/en-no/services/hettich-cad/cad-downloads',
+    source:'https://www.hettich.com/fileadmin/Hettich_International/Planning/imos/Informationsblatt_Hettich_ProDecor_Griffkollektion.pdf',
+    note:`Manufacturer CAD: ${spacing+10} × 10 × 32 mm, fixing centres ${spacing} mm. Ø5 mm clearance for M4 fixings; select screws for panel thickness. Physical fit untested.`,
+    values:{'hardware.handleType':'pull','hardware.handleHoleSpacing':spacing,'hardware.handleHoleDiameter':5} })),
   ...[76.2, 96, 101.6, 128, 160, 192, 224, 256, 320].map(spacing => ({
     id: `pull-${spacing}`, category: 'handles', label: `Pull — ${spacing === 76.2 ? '3 in (76.2 mm)' : spacing === 101.6 ? '4 in (101.6 mm)' : `${spacing} mm`} centres`,
     status: 'drilling', source: sources.pulls, note: 'Centre spacing preset, not a specific pull model. Use the measured centres; nominal inch equivalents can be rounded in catalogues.',
@@ -63,7 +69,7 @@ export const HARDWARE_LIBRARY = [
   })),
   { id: 'runner-3832e', category: 'runners', label: 'Accuride 3832E — side mount + pilot centres', status: 'drilling', source: sources.accuride,
     cadSource: 'https://ws.3dexchange.net/ACCURIDE/catalog/65989/57832',
-    note: '400, 450, 500, 550 and 600 mm use manufacturer CAD with separate rail stages; other lengths use a simplified preview. 12.7 mm side space (+0.8 / −0). Pilot centres: drawing 3700-9464 R10-0616. Check your supplied slide, especially clones. Custom dimensions remain editable. Face frames need blocking or rear brackets.',
+    note: 'All 250–700 mm lengths use exact manufacturer CAD and separate rail movement. 12.7 mm side space (+0.8 / −0). Pilots checked against the supplied STEP openings; 250/300 mm patterns differ from the older family drawing, and 450/550 mm omit its unsupported 259 mm pilot. Verify your supplied slide before machining, especially clones. Face frames need blocking or rear brackets.',
     values: { 'hardware.runnerMode': 'side-mount', 'drawers.sideClearance': 12.7, 'hardware.runnerLength': 500, 'hardware.runnerPattern': 'accuride-3832e', 'hardware.runnerPilotDiameter': 3, 'hardware.runnerPilotDepth': 8, 'hardware.runnerHoleHeight': 31.8 },
     lengths: [250, 300, 350, 400, 450, 500, 550, 600, 650, 700] },
   { id: 'joinery-none', category: 'joinery', label: 'None', status: 'drilling', values: { 'hardware.joineryType': 'none' } },

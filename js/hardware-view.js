@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HARDWARE_MODELS } from './hardware-models.js?v=20261103c';
+import { HARDWARE_MODELS } from './hardware-models.js?v=20261105a';
 
 export function addHardwareModels(mesh, panel) {
   for (const placement of panel.hardwareModels || []) {

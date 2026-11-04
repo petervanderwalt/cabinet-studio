@@ -1,8 +1,8 @@
-import { computePanels } from './cabinet-math.js?v=20261103r';
+import { computePanels } from './cabinet-math.js?v=20261105a';
 import { requestCad } from './cad-client.js?v=20261103s';
 import { basicPanelGeometry, machinedPanelGeometry } from './panel-mesh.js';
 import { createPanelMaterial, disposePanelMaterial } from './viewport-materials.js';
-import { addHardwareModels } from './hardware-view.js?v=20261103d';
+import { addHardwareModels } from './hardware-view.js?v=20261105a';
 import { formatLength, isImperial, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';

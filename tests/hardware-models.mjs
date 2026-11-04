@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { defaultCabinet, computePanels } from '../js/cabinet-math.js';
 import { applyHardwarePreset } from '../js/hardware-library.js';
-import { HARDWARE_MODELS, handleModelPlacement } from '../js/hardware-models.js';
+import { HARDWARE_MODELS, ANZIO_MODELS, handleModelPlacement } from '../js/hardware-models.js';
 import { createProjectFromConfig, normalizeProject } from '../js/project-io.js';
 import { frontLayout } from '../js/front-layout.js';
 
@@ -45,4 +45,26 @@ for (const mode of ['doors', 'drawers']) for (const width of [400, 800]) {
   assert.ok(computePanels(c).every(p => !p.hardwareModels));
 }
 assert.deepEqual(handleModelPlacement({type:'door',holes:[]}, {model:'hettich-1160018'}), []);
+assert.equal(ANZIO_MODELS.length,8);
+for(const model of ANZIO_MODELS) for(const mode of ['doors','drawers']) {
+  const spacing=model.mountingCentres[1][0]-model.mountingCentres[0][0];
+  near(model.bounds[0][1]-model.bounds[0][0],spacing+10);
+  near(model.bounds[1][1]-model.bounds[1][0],10);
+  near(model.bounds[2][1]-model.bounds[2][0],32);
+  assert.equal(model.positions.length%9,0); assert.ok(model.positions.every(Number.isFinite));
+  let c=applyHardwarePreset(defaultCabinet(),`handle-hettich-${model.partNumber}`);
+  c.width=1600;c.height=1000;c.front.mode=mode;c.drawers.count=2;
+  c.drawers.heights=Array(2).fill((frontLayout(c).height-c.reveal)/2);
+  c=normalizeProject(JSON.parse(JSON.stringify(createProjectFromConfig(c)))).cabinets[0].config;
+  for(const panel of computePanels(c).filter(p=>['door','drawer'].includes(p.type))) {
+    const placement=panel.hardwareModels[0],holes=panel.holes.filter(h=>h.purpose==='handle');
+    assert.equal(placement.model,`hettich-${model.partNumber}`);
+    model.mountingCentres.forEach(([x],i)=>{
+      near(placement.x+x*Math.cos(placement.rotation),holes[i].x-panel.cutWidth/2);
+      near(placement.y+x*Math.sin(placement.rotation),holes[i].y-panel.cutHeight/2);
+    });
+  }
+  c.width=200;c.front.mode='drawers';
+  if(spacing>200) assert.ok(computePanels(c).filter(p=>p.type==='drawer').every(p=>!p.hardwareModels),'oversized CAD must not stretch with adjusted drilling');
+}
 console.log('PASS: CAD dimensions, mounting axes coincide with door/drawer bores, save/load, generic/custom/no-handle fallback');

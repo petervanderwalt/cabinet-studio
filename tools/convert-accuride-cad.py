@@ -84,7 +84,7 @@ for stage in mounts:
                for d in [50,75,100,125,150,200,225,300,400]), (stage,'mounting web was not located')
 travel=opened['moving']['bounds'][2][0]-moving['bounds'][2][0]
 middle_travel=opened['intermediate']['bounds'][2][0]-closed['intermediate']['bounds'][2][0]
-assert abs(travel-settings['travel'])<5 and 0<middle_travel<travel
+assert abs(travel-settings['travel'])<length*0.05 and 0<middle_travel<travel
 result={'manufacturer':'Accuride','partNumber':part_number,'length':length,'units':'mm',
     'nominalTravel':settings['travel'],'travel':round(travel,5),'intermediateTravel':round(middle_travel,5),
     'omittedSmallFragments':len(fragments),

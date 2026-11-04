@@ -1,4 +1,4 @@
-import { selectedHardware } from './hardware-library.js?v=20261103n';
+import { selectedHardware } from './hardware-library.js?v=20261105a';
 
 // First checked assembly uses a fixed stock/reveal combination; preserve custom settings.
 export function addSensysHardware(panels, config) {

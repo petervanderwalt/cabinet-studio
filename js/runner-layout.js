@@ -1,6 +1,9 @@
 // Accuride 3832E/3834E drawing 3700-9464, revision R10-0616, page 1.
 // These are pilot centres, not the outlines of the adjustment slots.
 export function runnerPattern(length) {
+  // Exact E10/E12 STEP mounting openings differ from the older family drawing.
+  if (length === 250) return {cabinet:[35,195],drawer:[17.8,35,131,227]};
+  if (length === 300) return {cabinet:[35,259],drawer:[17.8,35,131,277]};
   const table = {
     250: [null, null, null, null, null, 192, null, null],
     300: [null, null, null, null, null, 242, 224, null],

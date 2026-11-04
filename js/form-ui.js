@@ -1,11 +1,11 @@
-import { runnerPattern, runnerSettings } from './runner-layout.js?v=20261103b';
+import { runnerPattern, runnerSettings } from './runner-layout.js?v=20261105a';
 import { frontLayout } from './front-layout.js';
 import { additionalDrawerHeight, distributeDrawerHeights } from './drawer-heights.js';
 import { dimension, formatLength, parseLength, getUnits, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 // form-ui.js - Build and manage the cabinet config form
-import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261103r';
+import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261105a';
 import { applyGlobalMaterialSelections, defaultStockMaterials } from './material-presets.js?v=20261020f';
-import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261103n';
+import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261105a';
 
 const SECTION_ICONS = {
   'Cabinet Type': 'fa-cube',

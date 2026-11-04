@@ -6,7 +6,7 @@ import { panelSolidData } from './panel-solid.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createPanelMaterial, disposePanelMaterial } from './viewport-materials.js';
-import { addHardwareModels } from './hardware-view.js?v=20261103d';
+import { addHardwareModels } from './hardware-view.js?v=20261105a';
 
 export class CabinetViewport {
   constructor(container, onPanelSelect) {
