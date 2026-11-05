@@ -1,4 +1,4 @@
-import { computePanels } from './cabinet-math.js?v=20261105a';
+import { computePanels } from './cabinet-math.js?v=20261105i';
 import { requestCad } from './cad-client.js?v=20261103s';
 import { basicPanelGeometry, machinedPanelGeometry } from './panel-mesh.js';
 import { createPanelMaterial, disposePanelMaterial } from './viewport-materials.js';
@@ -6,7 +6,7 @@ import { addHardwareModels } from './hardware-view.js?v=20261105a';
 import { formatLength, isImperial, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { downloadProjectFile } from './dxf-writer.js?v=20261103c';
+import { downloadProjectFile } from './dxf-writer.js?v=20261105i';
 import {
   autoArrangeProject,
   createProjectFromConfig,
@@ -15,7 +15,7 @@ import {
   normalizeProject,
   updatePlacement,
   updateRoom,
-} from './project-io.js?v=20261103c';
+} from './project-io.js?v=20261105i';
 
 const LAYOUT_SEED_KEY = 'cabinet-studio-layout-seed';
 const POSITION_SNAP = 10;

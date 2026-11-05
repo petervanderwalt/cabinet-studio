@@ -1,11 +1,11 @@
 import { runnerPattern, runnerSettings } from './runner-layout.js?v=20261105a';
-import { frontLayout } from './front-layout.js';
+import { frontLayout } from './front-layout.js?v=20261105i';
 import { additionalDrawerHeight, distributeDrawerHeights } from './drawer-heights.js';
 import { dimension, formatLength, parseLength, getUnits, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 // form-ui.js - Build and manage the cabinet config form
-import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261105a';
+import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261105i';
 import { applyGlobalMaterialSelections, defaultStockMaterials } from './material-presets.js?v=20261020f';
-import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261105a';
+import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261105i';
 
 const SECTION_ICONS = {
   'Cabinet Type': 'fa-cube',
@@ -36,8 +36,8 @@ export class CabinetForm {
     Object.assign(initial.materials, defaultStockMaterials(getUnits()));
     initial.units = getUnits();
     if (getUnits() === 'imperial') {
-      initial.nesting.sheetWidth = 2438.4;
-      initial.nesting.sheetHeight = 1219.2;
+      initial.nesting.sheetWidth = 1219.2;
+      initial.nesting.sheetHeight = 2438.4;
       initial.drawers.sideThickness = 12.7;
       initial.drawers.bottomThickness = 6.35;
     }
@@ -256,7 +256,7 @@ export class CabinetForm {
     merged.shelves = { ...defaults.shelves, ...(merged.shelves || {}) };
     merged.hardware = { ...defaults.hardware, ...(merged.hardware || {}) };
     merged.materials = { ...defaults.materials, ...(merged.materials || {}) };
-    merged.nesting = { ...defaults.nesting, ...(merged.nesting || {}) };
+    if (data?.nesting && data.nesting.edgeMargin == null) merged.nesting.edgeMargin = 0;
     merged.overlay = { ...defaults.overlay, ...(merged.overlay || {}) };
     merged.toeKick = { ...defaults.toeKick, ...(merged.toeKick || {}) };
     merged.drawers.heights = Array.isArray(merged.drawers.heights) ? [...merged.drawers.heights] : [];
@@ -516,8 +516,16 @@ export class CabinetForm {
     const backMount = this._createSelect([
       { value: 'grooved-in', label: 'Grooved-in (thin back)' },
       { value: 'applied-rear', label: 'Applied rear (structural)' },
+      { value: 'rear-strip', label: 'Open back — upper mounting strip' },
+      { value: 'rear-strips', label: 'Open back — upper and lower mounting strips' },
     ], { 'data-key': 'backMount' });
     backMount.value = this.config.backMount;
+    backMount.addEventListener('change', event => {
+      event.stopPropagation();
+      this.config = this.getConfig();
+      this._render();
+      this._emitChange();
+    });
     const ffw = this._createInput('number', { 'data-key': 'materials.faceFrameWidth', value: this.config.materials.faceFrameWidth, min: 10, step: 1 });
     const topRailW = this._createInput('number', { 'data-key': 'materials.topRailWidth', value: this.config.materials.topRailWidth ?? 38, min: 10, step: 1 });
     const bottomRailW = this._createInput('number', { 'data-key': 'materials.bottomRailWidth', value: this.config.materials.bottomRailWidth ?? 38, min: 10, step: 1 });
@@ -532,6 +540,10 @@ export class CabinetForm {
       this._makeField('Construction', cons),
       this._makeField('Full top panel (instead of stretchers)', hasTop),
       this._makeField('Back mount', backMount),
+      ...(['rear-strip', 'rear-strips'].includes(this.config.backMount) ? [
+        this._hardwareDimension('Mounting strip height', 'rearStripHeight', 80, null, 1),
+        this._makeBlurb('Strips use carcass stock. Wall fixing holes are left for the installer.'),
+      ] : []),
     ];
 
     if (this.config.construction === 'face-frame') {
@@ -851,7 +863,7 @@ export class CabinetForm {
         const [group, key] = path.split('.');
         return (this.config[group]?.[key] ?? (key === 'joineryType' ? 'none' : undefined)) === value;
       })) : null;
-      const jointLabel = { none: 'None', dowel: 'Dowels', dado: 'Dados', 'rastex-18': 'Rastex 15', 'cabineo-8': 'Cabineo 8', 'cabineo-12': 'Cabineo 12', 'pocket-manual': 'Pocket screws' }[this.config.hardware.joineryType] || 'Existing joint';
+      const jointLabel = { none: 'None', dowel: 'Dowels', dado: 'Dados', 'rastex-18': 'Rastex 15', 'cabineo-8': 'Cabineo 8', 'cabineo-12': 'Cabineo 12', 'pocket-manual': 'Pocket screws', 'outside-screws': 'Outside screws' }[this.config.hardware.joineryType] || 'Existing joint';
       const select = this._createSelect([
         ...(category !== 'joinery' ? [{ value: 'custom', label: 'Custom / existing dimensions' }]
           : !current && !matchingJoint ? [{ value: 'custom', label: `${jointLabel} — edited dimensions` }] : []),
@@ -923,6 +935,9 @@ export class CabinetForm {
   }
 
   _joineryFields() {
+    if (this.config.hardware.joineryType === 'outside-screws') return [
+      this._hardwareDimension('Screw clearance diameter', 'hardware.screwClearance', 5, 'joinery', 1),
+    ];
     if (this.config.hardware.joineryType === 'dado') return [
       this._hardwareDimension('Dado engagement depth', 'hardware.dadoDepth', 6, 'joinery'),
       this._hardwareDimension('Dado fit clearance', 'hardware.dadoClearance', 0.2, 'joinery'),

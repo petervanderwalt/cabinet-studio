@@ -3,10 +3,10 @@ import { initTabletViews } from './tablet-ui.js?v=20261102a';
 import { dimension, formatLength, getUnits, lengthInput, readLength, stockDimension, unitLabel } from './units.js?v=20261020h';
 // main.js - Application entry point
 import { CabinetViewport } from './three-viewport.js?v=20261105a';
-import { CabinetForm } from './form-ui.js?v=20261103ah';
-import { computePanels } from './cabinet-math.js?v=20261105a';
-import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261103c';
-import { buildNestingPlan } from './nesting.js?v=20261022e';
+import { CabinetForm } from './form-ui.js?v=20261105i';
+import { computePanels } from './cabinet-math.js?v=20261105i';
+import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261105i';
+import { buildNestingPlan } from './nesting.js?v=20261105h';
 import { applyGlobalMaterialSelections, STOCK_FIELDS, sharedStockChoices, splitStockAppearance } from './material-presets.js?v=20261020f';
 import {
   addCabinet,
@@ -19,7 +19,7 @@ import {
   setActiveCabinet,
   updateActiveCabinetConfig,
   updateCabinetMeta,
-} from './project-io.js?v=20261103c';
+} from './project-io.js?v=20261105i';
 
 let viewport = null;
 let form = null;
@@ -547,6 +547,7 @@ function updateNestingView(plan) {
         <div class="nesting-group-head">
           <div>
             <h4>${escapeHtml(group.title)}</h4>
+            ${plan.options.groupByMachining ? `<p>${escapeHtml(['Profile cut', ...group.operations].join(' · '))}</p>` : ''}
             <p>${group.sheets.length} ${group.sheets.length === 1 ? 'sheet' : 'sheets'} · ${group.partCount} parts · ${(group.utilization * 100).toFixed(1)}% utilization</p>
           </div>
         </div>
@@ -586,8 +587,11 @@ function buildNestingControls(config) {
         ${buildStockSelect('Drawer bottom', 'drawer-bottom', materials.drawerBottomMaterial, materials.drawerBottomThickness)}
       </div>
       <div class="nesting-controls-grid nesting-settings-grid" id="nesting-sheet-panel" role="tabpanel" aria-labelledby="nesting-tab-sheet"${nestingSettingsTab !== 'sheet' ? ' hidden' : ''}>
-        ${buildNestingNumberField('Sheet length', 'sheetWidth', nesting.sheetWidth ?? 2440, 'mm', 100, 1)}
-        ${buildNestingNumberField('Sheet width', 'sheetHeight', nesting.sheetHeight ?? 1220, 'mm', 100, 1)}
+        ${buildNestingNumberField('Sheet X', 'sheetWidth', nesting.sheetWidth ?? 1220, 'mm', 100, 1)}
+        ${buildNestingNumberField('Sheet Y', 'sheetHeight', nesting.sheetHeight ?? 2440, 'mm', 100, 1)}
+        <button class="topbar-btn" type="button" data-swap-sheet-axes>Swap X/Y</button>
+        ${buildNestingNumberField('Sheet edge margin', 'edgeMargin', nesting.edgeMargin ?? 0, 'mm', 0, 0.1)}
+        ${buildNestingCheckboxField('Group by machining operations', 'groupByMachining', nesting.groupByMachining === true)}
         ${buildNestingNumberField('Part gap', 'gap', nesting.gap ?? 20, 'mm', 0, 0.1)}
         ${buildNestingCheckboxField('Allow part rotation', 'allowRotation', nesting.allowRotation !== false)}
       </div>
@@ -650,6 +654,12 @@ function buildNestingCheckboxField(label, nestingKey, checked) {
 }
 
 function bindNestingViewEvents(root, plan) {
+  root.querySelector('[data-swap-sheet-axes]')?.addEventListener('click', () => {
+    const nesting = currentConfig.nesting;
+    form.importConfig({ ...currentConfig, nesting: { ...nesting,
+      sheetWidth: nesting.sheetHeight, sheetHeight: nesting.sheetWidth,
+    } });
+  });
   for (const button of root.querySelectorAll('[data-nesting-tab]')) {
     button.addEventListener('click', () => {
       nestingSettingsTab = button.dataset.nestingTab;

@@ -1,6 +1,6 @@
 import { dimension, formatLength, isImperial, toDisplay, stockDimension, unitLabel } from './units.js?v=20261020h';
-import { inferFrontMode } from './cabinet-math.js?v=20261105a';
-import { HARDWARE_CATEGORIES, hardwareBom, selectedHardware } from './hardware-library.js?v=20261105a';
+import { inferFrontMode } from './cabinet-math.js?v=20261105i';
+import { HARDWARE_CATEGORIES, hardwareBom, selectedHardware } from './hardware-library.js?v=20261105i';
 
 const JSZip = window.JSZip;
 
@@ -269,7 +269,7 @@ export function sheetToDxf(sheet, options = {}) {
 }
 
 function drillLayer(hole) {
-  return hole.depth > 0 && ['inside', 'top', 'underside', 'back', 'front'].includes(hole.face)
+  return hole.depth > 0 && ['inside', 'outside', 'top', 'underside', 'back', 'front'].includes(hole.face)
     ? `DRILL_${hole.face.toUpperCase()}_D${Number(hole.depth.toFixed(3))}MM` : 'DRILL';
 }
 
@@ -413,9 +413,15 @@ function generateProjectManifest(project, panels, nestingPlan) {
     lines.push(`    Hardware per cabinet (multiply by ${cabinet.qty}):`, ...hardwareManifest(cabinet.config, parts));
   }
   lines.push('');
+  if (nestingPlan?.options?.edgeMargin > 0) {
+    lines.push(`Sheet edge margin: ${dimension(nestingPlan.options.edgeMargin)}`, '');
+  }
   lines.push('MATERIAL GROUPS');
   for (const group of nestingPlan?.groups || []) {
     lines.push(`  ${group.title}: ${group.sheets.length} ${group.sheets.length === 1 ? 'sheet' : 'sheets'}, ${group.partCount} parts`);
+    if (nestingPlan.options?.groupByMachining) {
+      lines.push(`    ${['Profile cut', ...group.operations].join(' · ')}`);
+    }
   }
   lines.push('');
   return lines.join('\n');
@@ -438,7 +444,7 @@ export function downloadPanelDxf(panel) {
 }
 
 export function downloadSheetDxf(sheet, options = {}) {
-  const filename = `${safeName(sheet.materialLabel || 'Sheet Stock')}-${safeName(stockDimension(sheet))}-sheet-${sheet.index + 1}.dxf`;
+  const filename = `${safeName(sheet.title || `${sheet.materialLabel || 'Sheet Stock'}-${stockDimension(sheet)}`)}-sheet-${sheet.index + 1}.dxf`;
   triggerDownload(new Blob([sheetToDxf(sheet, options)], { type: 'application/dxf' }), filename);
 }
 

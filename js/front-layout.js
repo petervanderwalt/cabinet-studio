@@ -1,3 +1,9 @@
+export function rearInset(config) {
+  if (config.backMount === 'grooved-in') return config.materials.backThickness;
+  if (['rear-strip', 'rear-strips'].includes(config.backMount)) return config.materials.caseThickness;
+  return 0;
+}
+
 // Front bounds and usable drawer space, in assembled millimetres.
 export function frontLayout(c) {
   const t = c.materials.caseThickness, td = c.materials.doorThickness;

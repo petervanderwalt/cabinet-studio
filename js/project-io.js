@@ -1,5 +1,5 @@
 import { defaultStockMaterials } from './material-presets.js?v=20261020f';
-import { defaultCabinet, computePanels } from './cabinet-math.js?v=20261105a';
+import { defaultCabinet, computePanels } from './cabinet-math.js?v=20261105i';
 
 const PROJECT_VERSION = 2;
 const LAYOUT_SPACING = 40;
@@ -249,8 +249,8 @@ export function addCabinet(project, seedConfig = null) {
     fresh.units = getActiveCabinet(normalized).config.units || 'metric';
     Object.assign(fresh.materials, defaultStockMaterials(fresh.units));
     if (fresh.units === 'imperial') {
-      fresh.nesting.sheetWidth = 2438.4;
-      fresh.nesting.sheetHeight = 1219.2;
+      fresh.nesting.sheetWidth = 1219.2;
+      fresh.nesting.sheetHeight = 2438.4;
       fresh.drawers.sideThickness = 12.7;
       fresh.drawers.bottomThickness = 6.35;
     }

@@ -11,9 +11,11 @@ function clampNonNegative(value, fallback = 0) {
 
 function normalizeOptions(options = {}) {
   return {
-    sheetWidth: clampPositive(options.sheetWidth, 2440),
-    sheetHeight: clampPositive(options.sheetHeight, 1220),
+    sheetWidth: clampPositive(options.sheetWidth, 1220),
+    sheetHeight: clampPositive(options.sheetHeight, 2440),
     gap: clampNonNegative(options.gap ?? options.kerf, 20),
+    edgeMargin: clampNonNegative(options.edgeMargin),
+    groupByMachining: options.groupByMachining === true,
     allowRotation: options.allowRotation !== false,
   };
 }
@@ -30,7 +32,27 @@ function materialKey(panel) {
   return panel.stockKey || `${label}__${thickness}`;
 }
 
+function machiningOperations(panel) {
+  const operations = new Set();
+  for (const hole of panel.holes || []) {
+    operations.add(`Drill Ø${hole.diameter} mm, ${hole.face || 'face'}${hole.depth == null ? '' : ` at ${hole.depth} mm depth`}`);
+  }
+  for (const hole of panel.edgeBores || []) {
+    operations.add(`Edge drill Ø${hole.diameter} mm at ${hole.depth} mm depth`);
+  }
+  for (const groove of panel.grooves || []) {
+    operations.add(`Route ${groove.purpose || 'groove'} ${Math.min(groove.width, groove.height)} mm wide at ${groove.depth} mm depth (${groove.face || 'face'})`);
+  }
+  const detail = panel.detailMachining;
+  if (detail) operations.add(`Decorative route: ${detail.tool === 'v-bit' ? `${detail.angle}° V-bit` : `Ø${detail.diameter} mm straight bit`} at ${detail.depth} mm depth`);
+  else if (panel.detailPaths?.length) operations.add('Decorative routing path');
+  return [...operations].sort();
+}
+
 function createSheet(group, index, options) {
+  const margin = options.edgeMargin + group.machiningMargin;
+  const width = options.sheetWidth - margin * 2;
+  const height = options.sheetHeight - margin * 2;
   return {
     id: `${group.key}-sheet-${index + 1}`,
     index,
@@ -44,7 +66,8 @@ function createSheet(group, index, options) {
     sheetWidth: options.sheetWidth,
     sheetHeight: options.sheetHeight,
     placements: [],
-    freeRects: [{ x: 0, y: 0, width: options.sheetWidth, height: options.sheetHeight }],
+    edgeMargin: margin,
+    freeRects: width > 0 && height > 0 ? [{ x: margin, y: margin, width, height }] : [],
     usedArea: 0,
   };
 }
@@ -276,7 +299,7 @@ function placePart(sheet, part, options, orientationBias) {
   return placement;
 }
 
-function buildGroup(title, thickness, panels) {
+function buildGroup(key, title, thickness, panels) {
   const materialLabel = panels[0]?.materialLabel || `${dimension(thickness)} stock`;
   const familyCounts = new Map();
   for (const panel of panels) {
@@ -299,7 +322,8 @@ function buildGroup(title, thickness, panels) {
     }));
 
   return {
-    key: panels[0]?.stockKey || `${materialLabel}__${thickness}`,
+    key,
+    machiningMargin: panels.reduce((margin, panel) => Math.max(margin, Number(panel.machiningMargin) || 0), 0),
     material: panels[0]?.material,
     materialColour: panels[0]?.materialColour,
     stockUnits: panels[0]?.stockUnits,
@@ -347,7 +371,7 @@ function packGroup(group, options, strategy) {
     if (!placed) {
       unplaced.push({
         panel: part.panel,
-        reason: `Part does not fit on a ${formatLength(options.sheetWidth)} x ${dimension(options.sheetHeight)} sheet`,
+        reason: `Part does not fit within the usable area of a ${formatLength(options.sheetWidth)} x ${dimension(options.sheetHeight)} sheet`,
       });
     }
   }
@@ -393,20 +417,23 @@ export function buildNestingPlan(panels, nestingOptions = {}) {
   const groupsByKey = new Map();
 
   for (const panel of panels) {
-    const key = materialKey(panel);
-    if (!groupsByKey.has(key)) {
-      groupsByKey.set(key, []);
-    }
-    groupsByKey.get(key).push(panel);
+    const operations = options.groupByMachining ? machiningOperations(panel) : [];
+    const stock = materialKey(panel);
+    const key = options.groupByMachining ? JSON.stringify([stock, operations]) : stock;
+    if (!groupsByKey.has(key)) groupsByKey.set(key, { panels: [], operations });
+    groupsByKey.get(key).panels.push(panel);
   }
 
   const groups = [];
   const unplaced = [];
 
-  for (const [key, groupedPanels] of groupsByKey.entries()) {
+  for (const [key, { panels: groupedPanels, operations }] of groupsByKey) {
     const thickness = Number(groupedPanels[0]?.cutThickness || 0);
     const materialLabel = groupedPanels[0]?.materialLabel || `${dimension(thickness)} stock`;
-    const group = buildGroup(`${materialLabel} · ${stockDimension(groupedPanels[0])}`, thickness, groupedPanels);
+    const stockTitle = `${materialLabel} · ${stockDimension(groupedPanels[0])}`;
+    const setup = options.groupByMachining ? groups.length + 1 : null;
+    const group = buildGroup(setup === null ? key : `setup-${setup}`,
+      setup === null ? stockTitle : `${stockTitle} · Setup ${setup}`, thickness, groupedPanels);
     const packed = chooseBestPackedGroup(group, options);
     const sheets = packed.sheets;
     const totalPartArea = packed.totalPartArea;
@@ -414,7 +441,8 @@ export function buildNestingPlan(panels, nestingOptions = {}) {
     unplaced.push(...packed.unplaced);
 
     groups.push({
-      key,
+      key: group.key,
+      operations,
       title: group.title,
       materialLabel: group.materialLabel,
       material: group.material,

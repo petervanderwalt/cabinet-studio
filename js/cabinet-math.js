@@ -1,13 +1,13 @@
 import { setDetailMachining } from './detail-machining.js?v=20261103c';
 import { runnerSettings } from './runner-layout.js?v=20261105a';
-import { frontLayout, drawerBoxBounds } from './front-layout.js';
+import { frontLayout, drawerBoxBounds, rearInset } from './front-layout.js?v=20261105i';
 import { doorDetailPath, doorSlatPaths } from './door-detail.js?v=20261020o';
 import { splitStockAppearance } from './material-presets.js?v=20261020f';
-import { hardwareWarnings, selectedHardware } from './hardware-library.js?v=20261105a';
+import { hardwareWarnings, selectedHardware } from './hardware-library.js?v=20261105i';
 import { handleModelPlacement } from './hardware-models.js?v=20261105a';
 import { addRunnerPreviews } from './runner-preview.js?v=20261105a';
 import { addSensysHardware } from './hinge-layout.js';
-import { addDowelJoinery } from './joinery.js?v=20261022e';
+import { addDowelJoinery, addOutsideScrewJoinery } from './joinery.js?v=20261105i';
 import { addCamJoinery } from './cam-joinery.js?v=20261022e';
 import { addDados } from './dado-joinery.js?v=20261022e';
 import { addCabineoJoinery } from './cabineo-joinery.js?v=20261022e';
@@ -60,6 +60,7 @@ export function defaultCabinet() {
     depth: 560,
     hasTop: false,
     backMount: 'applied-rear',
+    rearStripHeight: 80,
     toeKick: { height: 100, setback: 75 },
     doors: { count: 2, hingeSide: 'both', detailStyle: 'none', detailInset: 50, detailSize: 40, detailSpacing: 50 },
     drawers: { count: 0, heights: [], sideClearance: 10, sideThickness: 12, bottomThickness: 6, detailStyle: 'none', detailInset: 50, detailSize: 40, detailSpacing: 50 },
@@ -99,8 +100,10 @@ export function defaultCabinet() {
       drawerHandleTopOffset: 50,
     },
     nesting: {
-      sheetWidth: 2440,
-      sheetHeight: 1220,
+      sheetWidth: 1220,
+      sheetHeight: 2440,
+      edgeMargin: 10,
+      groupByMachining: false,
       gap: 20,
       allowRotation: true,
     },
@@ -157,7 +160,7 @@ export function computePanels(cabinet) {
   const sideDepth = isInset ? D : Math.max(0, D - Td);
   const ffDepthOff = isFrameless ? 0 : T; // face frame occupies front T mm
   const isGroovedBack = cabinet.backMount === 'grooved-in';
-  const backFrontZ = isGroovedBack ? sideDepth - Tb : sideDepth;
+  const backFrontZ = sideDepth - rearInset(cabinet);
   const interiorDepth = Math.max(0, backFrontZ - front.boxFront);
   const runner = runnerSettings(cabinet);
   const sideMountRunner = hw.runnerMode === 'side-mount';
@@ -486,6 +489,26 @@ export function computePanels(cabinet) {
         edgeBanding: { top: false, bottom: false, left: false, right: false },
       }));
     }
+  } else if (['rear-strip', 'rear-strips'].includes(cabinet.backMount)) {
+    const height = cabinet.rearStripHeight ?? 80;
+    const count = cabinet.backMount === 'rear-strips' ? 2 : 1;
+    const width = W - 2 * T;
+    if (!Number.isFinite(height) || height <= 0 || height * count > H - bottomY - 2 * T || width <= 0 || sideDepth - ffDepthOff < T) {
+      boxWarnings.push('Rear mounting strips omitted: strip dimensions do not fit the carcass opening.');
+    } else {
+      for (const position of count === 2 ? ['top', 'bottom'] : ['top']) {
+        panels.push(makePanel({
+          id: `rear-strip-${position}`,
+          name: position === 'top' ? 'Upper Rear Mounting Strip' : 'Lower Rear Mounting Strip',
+          type: 'back', color: caseColor, materialLabel: caseMaterialLabel,
+          cutWidth: width, cutHeight: height, cutThickness: T,
+          posX: W / 2,
+          posY: position === 'top' ? H - T - height / 2 : bottomY + T + height / 2,
+          posZ: sideDepth - T / 2,
+          sizeX: width, sizeY: height, sizeZ: T,
+        }));
+      }
+    }
   } else {
     // Applied-rear
     const backH = tkHeight > 0 ? H - tkHeight : H;
@@ -516,7 +539,7 @@ export function computePanels(cabinet) {
   if (shelfCount > 0) {
     const shelfThk = cabinet.shelves?.thickness ?? T;
     const shelfW = W - 2 * T;
-    const shelfD = isGroovedBack ? Math.max(0, interiorDepth - 2) : interiorDepth;
+    const shelfD = rearInset(cabinet) > 0 ? Math.max(0, interiorDepth - 2) : interiorDepth;
     if (shelfW > 0 && shelfD > 0) {
       // Available interior height between bottom panel top and top/stretcher bottom
       const shelfTopY = cabinet.hasTop ? H - T : H - T; // bottom of top panel/stretchers
@@ -940,7 +963,7 @@ export function computePanels(cabinet) {
     });
     panel.holes = panel.holes.filter(h => !invalidPurposes.has(h.purpose));
   }
-  const joineryWarnings = [...addDowelJoinery(panels, cabinet), ...addCamJoinery(panels, cabinet), ...addDados(panels, cabinet), ...addCabineoJoinery(panels, cabinet)];
+  const joineryWarnings = [...addOutsideScrewJoinery(panels, cabinet), ...addDowelJoinery(panels, cabinet), ...addCamJoinery(panels, cabinet), ...addDados(panels, cabinet), ...addCabineoJoinery(panels, cabinet)];
   const handle = selectedHardware(cabinet).find(p => p.category === 'handles');
   for (const panel of panels) {
     const models = handleModelPlacement(panel, handle);

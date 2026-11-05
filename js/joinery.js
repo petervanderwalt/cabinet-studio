@@ -59,3 +59,52 @@ export function addDowelJoinery(panels, config) {
   for (const { panel, kind, bore } of pending) (panel[kind] ||= []).push(bore);
   return [];
 }
+
+export function addOutsideScrewJoinery(panels, config) {
+  if (config.hardware?.joineryType !== 'outside-screws') return [];
+  const diameter = config.hardware.screwClearance ?? 5;
+  const sides = panels.filter(panel => ['side-left', 'side-right'].includes(panel.id));
+  if (sides.length !== 2 || !Number.isFinite(diameter) || diameter <= 0) {
+    return ['Outside screws omitted: two carcass sides and a positive clearance diameter are required.'];
+  }
+
+  const warnings = [];
+  const radius = diameter / 2 + 1;
+  for (const member of panels) {
+    const strip = member.id.startsWith('rear-strip-');
+    if (!strip && !['bottom', 'top', 'stretcher-front', 'stretcher-back'].includes(member.id)) continue;
+    if (member.id === 'top' && member.posY >= sides[0].cutHeight) {
+      warnings.push('Outside screws do not fix the cap top. Fix it separately.');
+      continue;
+    }
+    const span = strip ? member.sizeY : member.sizeZ;
+    const stock = strip ? member.sizeZ : member.sizeY;
+    const rows = sides.map(side => {
+      const holes = [];
+      if (stock < 2 * radius) return holes;
+      for (const fraction of [0.2, 0.8, 0.35, 0.65, 0.5]) {
+        const offset = span * (fraction - 0.5);
+        if (span / 2 - Math.abs(offset) < radius) continue;
+        const y = member.posY + (strip ? offset : 0);
+        const z = member.posZ + (strip ? 0 : offset);
+        const fromFront = z - (side.posZ - side.sizeZ / 2);
+        const x = side.id === 'side-right' ? side.cutWidth - fromFront : fromFront;
+        if (x < radius || x > side.cutWidth - radius || y < radius || y > side.cutHeight - radius) continue;
+        if ([...side.notches, ...side.grooves].some(rect =>
+          x + radius > rect.x && x - radius < rect.x + rect.width &&
+          y + radius > rect.y && y - radius < rect.y + rect.height)) continue;
+        if ([...side.holes, ...holes].some(hole =>
+          Math.hypot(x - hole.x, y - hole.y) < radius + hole.diameter / 2)) continue;
+        holes.push({ x, y, diameter, depth: side.cutThickness, face: 'outside', purpose: 'outside-screw', mate: member.id });
+        if (holes.length === 2) break;
+      }
+      return holes;
+    });
+    if (rows.some(holes => holes.length !== 2)) {
+      warnings.push(`Outside screws omitted for ${member.name}: clearance holes do not fit without interfering with existing machining.`);
+    } else {
+      sides.forEach((side, index) => side.holes.push(...rows[index]));
+    }
+  }
+  return warnings;
+}

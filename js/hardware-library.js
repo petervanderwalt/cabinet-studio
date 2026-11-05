@@ -1,4 +1,4 @@
-import { frontLayout } from './front-layout.js';
+import { frontLayout, rearInset } from './front-layout.js?v=20261105i';
 import { runnerSettings } from './runner-layout.js?v=20261105a';
 // Dimensions are millimetres. Presets apply only on selection; stored dimensions remain authoritative.
 const sources = {
@@ -72,6 +72,9 @@ export const HARDWARE_LIBRARY = [
     note: 'All 250–700 mm lengths use exact manufacturer CAD and separate rail movement. 12.7 mm side space (+0.8 / −0). Pilots checked against the supplied STEP openings; 250/300 mm patterns differ from the older family drawing, and 450/550 mm omit its unsupported 259 mm pilot. Verify your supplied slide before machining, especially clones. Face frames need blocking or rear brackets.',
     values: { 'hardware.runnerMode': 'side-mount', 'drawers.sideClearance': 12.7, 'hardware.runnerLength': 500, 'hardware.runnerPattern': 'accuride-3832e', 'hardware.runnerPilotDiameter': 3, 'hardware.runnerPilotDepth': 8, 'hardware.runnerHoleHeight': 31.8 },
     lengths: [250, 300, 350, 400, 450, 500, 550, 600, 650, 700] },
+  { id: 'outside-screws', category: 'joinery', label: 'Outside screws', status: 'drilling',
+    note: 'Through-clearance holes from the exterior side faces. Drill mating pilots and any countersinks manually. A cap top sits above the sides and needs a separate fixing.',
+    values: { 'hardware.joineryType': 'outside-screws', 'hardware.screwClearance': 5 } },
   { id: 'joinery-none', category: 'joinery', label: 'None', status: 'drilling', values: { 'hardware.joineryType': 'none' } },
   { id: 'dowel-8x30', category: 'joinery', image: 'assets/hardware/dowels.jpg', imageNote: 'TIMCO 8 × 30 mm dowels shown as a type reference; use the size selected above.', imageSource: 'https://timco.co.uk/WDOWEL830P-wooden-dowels', label: 'Dowels — 8 × 30 mm', status: 'drilling', note: 'Bottom, top and stretchers only. Matched face bores and a separate edge-boring schedule; 2 mm total glue allowance. Physical trial required.',
     values: { 'hardware.joineryType': 'dowel', 'hardware.dowelDiameter': 8, 'hardware.dowelLength': 30, 'hardware.dowelFaceDepth': 12, 'hardware.dowelEdgeDepth': 20, 'hardware.dowelEndOffset': 37, 'hardware.dowelMaxSpacing': 160 } },
@@ -123,7 +126,7 @@ export function hardwareWarnings(config) {
   }
   if (drawers && hw.runnerMode === 'side-mount') {
     const depth = config.depth - (config.overlay.type === 'inset' ? 0 : config.materials.doorThickness)
-      - (config.backMount === 'grooved-in' ? config.materials.backThickness : 0) - frontLayout(config).boxFront;
+      - rearInset(config) - frontLayout(config).boxFront;
     if (!(hw.runnerLength > 0 && hw.runnerLength + Math.max(3.2, runnerSettings(config).setback - frontLayout(config).boxFront) <= depth)) warnings.push('Selected runner is too long for the available cabinet depth; drawer boxes omitted.');
     if (!(hw.runnerPattern === 'custom' ? config.drawers.sideClearance >= 0 : config.drawers.sideClearance >= 12.7 && config.drawers.sideClearance <= 13.5)) warnings.push('Accuride 3832E side space must be 12.7–13.5mm per side; drawer boxes omitted.');
     if (config.construction !== 'frameless') warnings.push('Side-mount runner fit currently requires a frameless carcass; drawer boxes omitted.');
@@ -146,6 +149,8 @@ export function hardwareBom(config, panels) {
   if (shelves && count('shelf-pin')) rows.push({ item: label('shelfPins'), quantity: shelves * 4, unit: 'shelf pins' });
   const drawers = panels.filter(p => /(?:^|__)drawer-\d+-side-left$/.test(p.id)).length;
   if (drawers) rows.push({ item: label('runners'), quantity: drawers, unit: 'runner pairs', note: hw.runnerMode === 'side-mount' ? `Length ${hw.runnerLength} mm; pilot centres supplied; verify against the slide before drilling.` : 'Existing reference holes are not a manufacturer mounting pattern.' });
+  const screws = count('outside-screw');
+  if (screws) rows.push({ item: 'Carcass assembly screws', quantity: screws, unit: 'screws', note: 'Choose fasteners and mating pilots for the stock.' });
   const dowels = panels.reduce((n, p) => n + (p.edgeBores || []).filter(h => h.purpose === 'alignment-dowel').length, 0);
   const cams = count('cam-housing');
   const cabineos = count('cabineo-pilot');
