@@ -2,12 +2,12 @@ import { downloadCabinetStep } from './step-writer.js?v=20261103s';
 import { initTabletViews } from './tablet-ui.js?v=20261102a';
 import { dimension, formatLength, getUnits, lengthInput, readLength, stockDimension, unitLabel } from './units.js?v=20261020h';
 // main.js - Application entry point
-import { CabinetViewport } from './three-viewport.js?v=20261105a';
-import { CabinetForm } from './form-ui.js?v=20261105i';
-import { computePanels } from './cabinet-math.js?v=20261105i';
-import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261105i';
+import { CabinetViewport } from './three-viewport.js?v=20261106ar';
+import { CabinetForm } from './form-ui.js?v=20261106aq';
+import { computePanels } from './cabinet-math.js?v=20261106aq';
+import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261106aq';
 import { buildNestingPlan } from './nesting.js?v=20261105h';
-import { applyGlobalMaterialSelections, STOCK_FIELDS, STOCK_THICKNESSES, sharedStockChoices, splitStockAppearance } from './material-presets.js?v=20261020f';
+import { applyGlobalMaterialSelections, STOCK_FIELDS, STOCK_THICKNESSES, sharedStockChoices, splitStockAppearance } from './material-presets.js?v=20261106aq';
 import {
   addCabinet,
   buildProjectPanels,
@@ -19,7 +19,7 @@ import {
   setActiveCabinet,
   updateActiveCabinetConfig,
   updateCabinetMeta,
-} from './project-io.js?v=20261105i';
+} from './project-io.js?v=20261106aq';
 
 let viewport = null;
 let form = null;
@@ -63,6 +63,9 @@ function init() {
       viewport.setShowEdges(showEdgesToggle.checked);
     });
   }
+  const panelOpacity = document.getElementById('panel-opacity');
+  viewport.setPanelOpacity(panelOpacity.valueAsNumber / 100);
+  panelOpacity.addEventListener('input', () => viewport.setPanelOpacity(panelOpacity.valueAsNumber / 100));
 
   form = new CabinetForm(formContainer, (config) => {
     if (currentProject) for (const cabinet of currentProject.cabinets) cabinet.config.units = getUnits();
@@ -162,7 +165,7 @@ function refreshDerivedState() {
   renderProjectTabs();
   updatePanelList(currentPanels);
   updateNestingView(currentNestingPlan);
-  viewport.update(currentPanels);
+  viewport.update(currentPanels, activeCabinet.id);
   persistLayoutSeedProject();
 }
 

@@ -1,11 +1,18 @@
-import { selectedHardware } from './hardware-library.js?v=20261105a';
-import { runnerSettings, runnerTravel } from './runner-layout.js?v=20261105a';
+import { selectedHardware } from './hardware-library.js?v=20261106aq';
+import { runnerSettings, runnerTravel } from './runner-layout.js?v=20261105g';
 import { panelBores } from './panel-bores.js?v=20261103c';
-import { ACCURIDE_MODELS } from './hardware-models.js?v=20261105a';
+import { QUADRO_2D, QUADRO_5D, quadroMountDepths, quadroSetback } from './blum-runner-layout.js?v=20261106aq';
+import { ACCURIDE_MODELS } from './hardware-models.js?v=20261106aq';
 
 export const RUNNER_PREVIEW = { height:45.7, thickness:12.7 };
 
 export function addRunnerPreviews(panels, config) {
+  const mode = config.hardware.runnerMode;
+  if (mode === 'hettich-quadro-2d' || mode === 'hettich-quadro-5d') {
+    const table = mode === 'hettich-quadro-5d' ? QUADRO_5D : QUADRO_2D;
+    addQuadroRails(panels, table[config.hardware.runnerLength], config);
+    return;
+  }
   const selected = selectedHardware(config).find(p => p.category === 'runners');
   if (selected?.id !== 'runner-3832e' || config.hardware.runnerPattern !== 'accuride-3832e') return;
   const settings = runnerSettings(config);
@@ -45,5 +52,37 @@ export function addRunnerPreviews(panels, config) {
     append(drawer, 'moving', movingX, movingZ, -direction, 26, 3, movingBores);
     const front = panels.find(p => p.id === drawerId);
     if (front) front.runnerTravel = travel;
+  }
+}
+
+function addQuadroRails(panels, spec, config) {
+  if (!spec) return;
+  const setback = quadroSetback(config);
+  const mountDepths = quadroMountDepths(config,spec);
+  for (const side of ['left', 'right']) {
+    const carcass = panels.find(p => p.id === `side-${side}`);
+    if (!carcass) continue;
+    const mounts = panelBores(carcass).filter(b => b.purpose === 'quadro-runner-mount');
+    for (const { start: [x, y, z] } of mounts) {
+      if (Math.abs(z + carcass.sizeZ / 2 - 10 - setback) > 0.001) continue;
+      const complete = mountDepths.every(depth => mounts.some(b =>
+        Math.abs(b.start[1] - y) < 0.001 && Math.abs(b.start[2] - z - depth + 10) < 0.001));
+      if (!complete) continue;
+      carcass.hardwareModels ||= [];
+      const model = `hettich-${side === 'left' ? spec.left : (spec.right ?? spec.left + 1)}`;
+      const placement = {model, x, y, z:z - 10, rotation:0};
+      carcass.hardwareModels.push(placement);
+      const back = panels.find(p => p.type === 'drawer-box' && p.holes.some(h =>
+        h.purpose === 'quadro-rear-hook' && Math.abs(p.posY - p.sizeY / 2 + h.y - 1.5 - carcass.posY - y) < 0.001));
+      if (!back) continue;
+      carcass.hardwareModels.push({...placement, model:`${model}-closed`, closedOnly:true, drawerId:back.id.replace(/-back$/, '')});
+      back.hardwareModels ||= [];
+      back.hardwareModels.push({
+        model:`${model}-moving`, rotation:0,
+        x:carcass.posX + placement.x - back.posX,
+        y:carcass.posY + placement.y - back.posY,
+        z:carcass.posZ + placement.z - back.posZ,
+      });
+    }
   }
 }

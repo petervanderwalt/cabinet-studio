@@ -1,6 +1,6 @@
 import { dimension, formatLength, isImperial, toDisplay, stockDimension, unitLabel } from './units.js?v=20261020h';
-import { inferFrontMode } from './cabinet-math.js?v=20261105i';
-import { HARDWARE_CATEGORIES, hardwareBom, selectedHardware } from './hardware-library.js?v=20261105i';
+import { inferFrontMode } from './cabinet-math.js?v=20261106aq';
+import { HARDWARE_CATEGORIES, hardwareBom, selectedHardware } from './hardware-library.js?v=20261106aq';
 
 const JSZip = window.JSZip;
 
@@ -120,7 +120,18 @@ function traceOutlineWithNotches(width, height, notches) {
   const bottomLeftNotch = notches.find((notch) => notch.x === 0 && notch.y === 0);
   const bottomRightNotch = notches.find((notch) => notch.x + notch.width === width && notch.y === 0);
 
-  if (bottomLeftNotch) {
+  if (bottomLeftNotch && bottomRightNotch) {
+    points.push(
+      { x: 0, y: bottomLeftNotch.height },
+      { x: 0, y: height },
+      { x: width, y: height },
+      { x: width, y: bottomRightNotch.height },
+      { x: bottomRightNotch.x, y: bottomRightNotch.height },
+      { x: bottomRightNotch.x, y: 0 },
+      { x: bottomLeftNotch.width, y: 0 },
+      { x: bottomLeftNotch.width, y: bottomLeftNotch.height },
+    );
+  } else if (bottomLeftNotch) {
     points.push({ x: 0, y: bottomLeftNotch.height });
     points.push({ x: 0, y: height });
     points.push({ x: width, y: height });
@@ -269,6 +280,7 @@ export function sheetToDxf(sheet, options = {}) {
 }
 
 function drillLayer(hole) {
+  if (hole.purpose === 'handle-pocket') return `HANDLE_POCKET_FRONT_D${hole.depth}MM`;
   return hole.depth > 0 && ['inside', 'outside', 'top', 'underside', 'back', 'front'].includes(hole.face)
     ? `DRILL_${hole.face.toUpperCase()}_D${Number(hole.depth.toFixed(3))}MM` : 'DRILL';
 }
@@ -277,7 +289,11 @@ function depthLayers(panels) {
   return [...new Set(panels.flatMap(p => [...(p.holes || []).map(drillLayer), ...(p.grooves || []).map(grooveLayer)]))].filter(l => l !== 'DRILL' && l !== 'GROOVE');
 }
 
-function grooveLayer(g) { return g.purpose === 'dado' ? `DADO_INSIDE_D${g.depth}MM` : 'GROOVE'; }
+function grooveLayer(g) {
+  if(g.purpose==='handle-recess') return `HANDLE_POCKET_FRONT_D${g.depth}MM`;
+  if(g.purpose==='drawer-bottom-groove') return `DRAWER_GROOVE_INSIDE_D${g.depth}MM`;
+  return g.purpose === 'dado' ? `DADO_INSIDE_D${g.depth}MM` : 'GROOVE';
+}
 
 // Kept in panel-local coordinates; sheet rotation never changes secondary setups.
 export function machiningSchedule(panels) {
@@ -298,7 +314,7 @@ function hardwareManifest(config, panels) {
     if (preset.source) lines.push(`    Source: ${preset.source}`);
   }
   for (const row of hardwareBom(config, panels)) lines.push(`  ${row.quantity} ${row.unit}: ${row.item}${row.note ? ` — ${row.note}` : ''}`);
-  for (const p of panels) for (const warning of p.hardwareWarnings || []) lines.push(`  WARNING: ${warning}`);
+  for (const warning of new Set(panels.flatMap(p => p.hardwareWarnings || []))) lines.push(`  WARNING: ${warning}`);
   lines.push('  Face/depth DXF layers: DRILL_<FACE>_D<depth>MM. Edge bores are in machining-schedule.json, never DRILL circles.');
   for (const p of panels) for (const b of p.edgeBores || []) lines.push(`  ${p.name}: ${b.joint}, ${b.edge}, x=${dimension(b.x)}, y=${dimension(b.y)}, thickness offset=${dimension(b.offset)}, diameter=${dimension(b.diameter)}, depth=${dimension(b.depth)}, mate=${b.mate}`);
   return lines;
@@ -382,7 +398,7 @@ function generateCabinetManifest(config, panels) {
     lines.push(`    ${panel.name.padEnd(22)}${dims}${edgeParts.length > 0 ? edgeParts.join('/') : '-'}`);
     lines.push(`      Stock: ${panel.materialLabel || '-'} · ${stockDimension(panel)}`);
     for (const groove of panel.grooves || []) {
-      if (groove.depth > 0) lines.push(`      ${groove.purpose === 'dado' ? 'Dado' : 'Back rebate'}: ${dimension(groove.depth)} deep, inside face; footprint on ${grooveLayer(groove)} layer`);
+      if (groove.depth > 0) lines.push(`      ${groove.purpose === 'handle-recess' ? 'Handle pocket' : groove.purpose === 'dado' ? 'Dado' : 'Back rebate'}: ${dimension(groove.depth)} deep, ${groove.face ?? 'inside'} face; footprint on ${grooveLayer(groove)} layer`);
     }
     if (panel.joinery?.type === 'dado') lines.push(`      Dado mating panel: original width ${dimension(panel.joinery.originalWidth)} + 2 x ${dimension(panel.joinery.extensionPerSide)} engagement = ${dimension(panel.cutWidth)}. Fixed panel.`);
   }

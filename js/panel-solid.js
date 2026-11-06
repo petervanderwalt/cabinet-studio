@@ -2,18 +2,24 @@
 // Coordinates use the assembled panel axes, with the mesh centred at zero.
 export function panelVoids(panel) {
   const p = panel;
-  const right = p.id === 'side-right';
-  const side = right || p.id === 'side-left';
+  const right = p.id.endsWith('side-right');
+  const side = right || p.id === 'side-left' || (p.type==='drawer-box' && p.id.endsWith('side-left'));
   const voids = [];
   if (side) {
     for (const n of p.notches || []) {
       const z = right ? p.cutWidth - n.x - n.width : n.x;
       voids.push([[0, p.sizeX], [n.y, n.y + n.height], [z, z + n.width]]);
     }
+  } else if (p.type === 'drawer-box' && p.id.endsWith('-back')) {
+    for (const n of p.notches || []) {
+      voids.push([[n.x, n.x + n.width], [n.y, n.y + n.height], [0, p.sizeZ]]);
+    }
   }
   for (const g of p.grooves || []) {
     if (!(g.depth > 0)) continue;
-    if (side) {
+    if (g.face === 'front') {
+      voids.push([[g.x, g.x + g.width], [g.y, g.y + g.height], [0, g.depth]]);
+    } else if (side) {
       const z = right ? p.cutWidth - g.x - g.width : g.x;
       voids.push([right ? [0, g.depth] : [p.sizeX - g.depth, p.sizeX],
         [g.y, g.y + g.height], [z, z + g.width]]);

@@ -22,16 +22,17 @@ for (const length of [250,300,350,400,450,500,550,600,650,700]) {
     const panels=computePanels(c), items=rails(panels);
     assert.equal(items.length,12,'three stages on both sides of two drawers');
     const cad=ACCURIDE_MODELS[length];
-    assert.ok(panels.filter(p=>p.type==='drawer').every(p=>p.runnerTravel===(cad?.travel || runnerTravel(length))));
-    assert.ok(items.every(({rail})=>Boolean(rail.model)===Boolean(cad)),'only verified lengths receive CAD');
+    assert.ok(cad,`missing manufacturer CAD for ${length} mm`);
+    assert.ok(panels.filter(p=>p.type==='drawer').every(p=>p.runnerTravel===cad.travel));
     for (const {panel,rail} of items) {
       assert.ok(['x','y','z','length','height','depth','travel'].every(k=>Number.isFinite(rail[k])));
+      assert.equal(HARDWARE_MODELS[rail.model],cad.stages[rail.stage]);
+      near(rail.travel,cad.travel);
+      near(rail.travelFactor*rail.travel,cad.intermediateTravel);
       if (rail.stage==='intermediate') { assert.equal(rail.mounts.length,0); continue; }
-      if(cad) {
-        const model=HARDWARE_MODELS[rail.model];
-        assert.equal(model.mountingCentres.length,rail.mounts.length);
-        model.mountingCentres.forEach((point,i)=>near(point[2],rail.mounts[i].z));
-      }
+      const model=HARDWARE_MODELS[rail.model];
+      assert.equal(model.mountingCentres.length,rail.mounts.length);
+      model.mountingCentres.forEach((point,i)=>near(point[2],rail.mounts[i].z));
       const purpose=rail.stage==='fixed'?'drawer-runner-mount':'drawer-slide-mount';
       const bores=panelBores(panel).filter(b=>b.purpose===purpose && Math.abs(b.start[1]-rail.y)<0.001);
       assert.equal(rail.mounts.length,bores.length);
@@ -84,15 +85,18 @@ const source=readFileSync(new URL('../js/three-viewport.js',import.meta.url),'ut
 const body=source.match(/  _renderFrame\(\) \{([\s\S]*?)\n  \}\n/)[1];
 const middle={position:{z:0},userData:{baseZ:252}};
 const fixed={position:{z:252}};
-const state={type:'drawer',current:0,target:508,group:{position:{z:0}},runnerRails:[middle]};
+const closedRail={visible:true};
+const state={type:'drawer',current:0,target:508,group:{position:{z:0}},runnerRails:[middle],closedHardware:[closedRail]};
 const context={animStates:new Map([['drawer-1',state]]),_cadRevision:1,_readyRevision:0,
   _updateFog(){},renderer:{render(){}},_requestRender(){}};
 const frame=()=>vm.runInNewContext(`(function(){${body}}).call(this)`,context);
 for(let i=0;i<60;i++)frame();
 near(state.group.position.z,-508); near(middle.position.z,252-254);near(fixed.position.z,252);
+assert.equal(closedRail.visible,false);
 state.target=0;
 for(let i=0;i<60;i++)frame();
 near(state.group.position.z,0); near(middle.position.z,252);
+assert.equal(closedRail.visible,true);
 middle.userData.travelFactor=ACCURIDE_3832_E20.intermediateTravel/ACCURIDE_3832_E20.travel;
 state.target=ACCURIDE_3832_E20.travel;
 for(let i=0;i<60;i++)frame();
@@ -105,5 +109,74 @@ for(const cad of Object.values(ACCURIDE_MODELS)) {
   state.target=0;
   for(let i=0;i<60;i++)frame();
   near(state.group.position.z,0);near(middle.position.z,252);
+}
+const addDrawerGroup=source.match(/  _addDrawerGroup\(panels\) \{([\s\S]*?)\n  \}\n/)[1];
+class Group {
+  children=[];
+  userData={};
+  position={set(x,y,z){Object.assign(this,{x,y,z});}};
+  add(child){this.children.push(child);}
+  traverse(visit){
+    visit(this);
+    for(const child of this.children) child.traverse(visit);
+  }
+}
+for(const family of ['2d','5d']) {
+  const config=applyHardwarePreset(defaultCabinet(),`runner-hettich-quadro-${family}`);
+  config.front.mode='drawers';config.drawers.count=2;config.depth=750;
+  config.drawers.sideThickness=16;
+  config.drawers.heights=Array(2).fill((frontLayout(config).height-config.reveal)/2);
+  const panels=computePanels(config);
+  const panelGroup=new Group(),animStates=new Map(),railMeshes=[];
+  for(const panel of panels.filter(p=>p.id==='side-left' || p.id==='side-right')) {
+    for(const placement of panel.hardwareModels) {
+      const mesh=new Group();
+      mesh.userData=placement;
+      mesh.panel=panel;
+      mesh.position.z=placement.z;
+      mesh.visible=true;
+      panelGroup.add(mesh);
+      railMeshes.push(mesh);
+    }
+  }
+  const viewport={...context,panelGroup,animStates,_buildPanelMesh:panel=>{
+    const mesh=new Group();
+    mesh.userData.panelId=panel.id;
+    for(const placement of panel.hardwareModels || []) {
+      const rail=new Group();
+      rail.userData=placement;
+      rail.position.z=placement.z;
+      mesh.add(rail);
+    }
+    return mesh;
+  }};
+  for(const id of ['drawer-1','drawer-2']) {
+    const drawer=panels.filter(p=>p.id===id || p.id.startsWith(id+'-'));
+    vm.runInNewContext(`(function(panels){${addDrawerGroup}}).call(viewport,drawer)`,
+      {viewport,drawer,THREE:{Group}});
+  }
+  assert.equal(railMeshes.length,8);
+  for(const id of ['drawer-1','drawer-2']) {
+    const active=animStates.get(id);
+    const back=active.group.children.find(mesh=>mesh.userData.panelId===id+'-back');
+    assert.equal(back.children.length,2);
+    assert.equal(active.closedHardware.length,2);
+    active.target=active.max;
+    for(let i=0;i<60;i++) vm.runInNewContext(`(function(){${body}}).call(this)`,viewport);
+    near(active.group.position.z,-active.max);
+    for(const moving of back.children) {
+      const fixed=railMeshes.find(rail=>rail.userData.model+'-moving'===moving.userData.model
+        && Math.abs(rail.userData.y+rail.panel.posY-moving.userData.y-back.position.y)<0.001);
+      assert.ok(fixed);
+      near(active.group.position.z+back.position.z+moving.position.z,fixed.panel.posZ+fixed.position.z-active.max);
+    }
+    for(const rail of railMeshes) {
+      assert.equal(rail.visible,rail.userData.drawerId!==id);
+      near(rail.position.z,rail.userData.z);
+    }
+    active.target=0;
+    for(let i=0;i<60;i++) vm.runInNewContext(`(function(){${body}}).call(this)`,viewport);
+    assert.ok(railMeshes.every(rail=>rail.visible));
+  }
 }
 console.log('PASS: 20 runner configurations, mounting-axis alignment on both sides, exact travel, save/load, invalid/custom guards, extend/retract animation');

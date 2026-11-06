@@ -1,11 +1,11 @@
-import { runnerPattern, runnerSettings } from './runner-layout.js?v=20261105a';
-import { frontLayout } from './front-layout.js?v=20261105i';
+import { runnerPattern, runnerSettings } from './runner-layout.js?v=20261105g';
+import { frontLayout } from './front-layout.js?v=20261105j';
 import { additionalDrawerHeight, distributeDrawerHeights } from './drawer-heights.js';
 import { dimension, formatLength, parseLength, getUnits, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 // form-ui.js - Build and manage the cabinet config form
-import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261105i';
-import { applyGlobalMaterialSelections, defaultStockMaterials } from './material-presets.js?v=20261020f';
-import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261105i';
+import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261106aq';
+import { applyGlobalMaterialSelections, defaultStockMaterials } from './material-presets.js?v=20261106aq';
+import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, THIN_HINGE_SCREWS, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261106aq';
 
 const SECTION_ICONS = {
   'Cabinet Type': 'fa-cube',
@@ -808,7 +808,7 @@ export class CabinetForm {
       if (this.config.overlay.type === 'partial-overlay') this.config.overlay.amount = this.config.materials.caseThickness / 2;
       this._render(); this._emitChange();
     });
-    const amount = this._createInput('number', { 'data-key': 'overlay.amount', value: this.config.overlay.amount, min: 0 });
+    const amount = this._createInput('number', { 'data-key': 'overlay.amount', value: this.config.overlay.amount, min: 0, step: 0.5 });
     const reveal = this._createInput('number', { 'data-key': 'reveal', value: this.config.reveal, min: 0, step: 0.5 });
 
     return [
@@ -856,7 +856,10 @@ export class CabinetForm {
     categories ||= this._frontMode() === 'drawers'
       ? ['handles', 'runners'] : ['hingeCup', 'hingePlate', 'shelfPins', 'handles'];
     const selected = selectedHardware(this.config);
+    const pairedPlate = selected.find(p => p.category === 'hingeCup')?.pairedPreset;
+    const matchedPlate = pairedPlate && selected.find(p => p.id === pairedPlate);
     for (const category of categories) {
+      if (category === 'hingePlate' && matchedPlate) continue;
       const presets = HARDWARE_LIBRARY.filter(p => p.category === category);
       const current = selected.find(p => p.category === category)?.id;
       const matchingJoint = category === 'joinery' ? presets.find(p => Object.entries(p.values).every(([path, value]) => {
@@ -906,9 +909,18 @@ export class CabinetForm {
         this.container.scrollTop = scroll;
         this._emitChange();
       });
-      const field = this._makeField(HARDWARE_CATEGORIES[category], select);
+      const field = this._makeField(category === 'hingeCup' ? 'Hinge' : HARDWARE_CATEGORIES[category], select);
       field.classList.add('hardware-library-field');
       fields.push(field, note);
+      if (category === 'hingeCup' && matchedPlate) fields.push(this._makeBlurb(matchedPlate.label));
+      if (preset?.thinOverlay) {
+        const screw = this._createSelect([
+          {value:'',label:'Manual fitting'},
+          ...THIN_HINGE_SCREWS.map(({sku,diameter,depth}) => ({value:sku,label:`${sku} — Ø${dimension(diameter)} × ${dimension(depth)}`})),
+        ], {'data-key':'hardware.thinHingeScrew','aria-label':'Thin-door fixing'});
+        screw.value = this.config.hardware.thinHingeScrew || '';
+        fields.push(this._makeField('Thin-door fixing',screw));
+      }
       if (category === 'handles' && preset) fields.push(...this._handlePositionFields());
       if (category === 'runners' && preset?.lengths) {
         const current = this.config.hardware.runnerLength;
@@ -917,6 +929,17 @@ export class CabinetForm {
           { 'data-key': 'hardware.runnerLength', 'data-number': 'true', 'aria-label': 'Slide length' });
         length.value = String(current);
         fields.push(this._makeField('Slide length', length));
+      }
+      if (category === 'runners' && ['hettich-quadro-2d','hettich-quadro-5d'].includes(this.config.hardware.runnerMode)) {
+        const gap=this._createSelect([{value:2,label:'2 mm'},{value:0,label:'0 mm'}],
+          {'data-key':'hardware.quadroFrontGap','data-number':'true','aria-label':'Quadro front gap'});
+        gap.value=this.config.hardware.quadroFrontGap===0?0:2;
+        fields.push(this._makeField('Front gap',gap));
+        if (this.config.hardware.runnerMode === 'hettich-quadro-2d') {
+          const manual=this._createInput('checkbox',{'data-key':'hardware.quadroManualMiddle','aria-label':'Hand-fit middle fixing'});
+          manual.checked=this.config.hardware.quadroManualMiddle===true;
+          fields.push(this._makeField('Hand-fit middle fixing',manual));
+        }
       }
     }
     return fields;
@@ -1002,6 +1025,7 @@ export class CabinetForm {
       'blum-inset': { front: 37, rear: 32, spacing: 32, second: false },
       blum: { front: 37, rear: 32, spacing: 32, second: false },
       'hettich-sensys': { front:37,rear:32,spacing:32,second:false },
+      'hettich-sensys-inset': {front:38,rear:32,spacing:32,second:false},
     };
     const hw = this.config.hardware;
     const matchingPattern = Object.entries(patterns).find(([, p]) => (
@@ -1015,9 +1039,10 @@ export class CabinetForm {
       { value: 'blum', label: 'Blum frameless (2 × 1)' },
       { value: 'blum-inset', label: 'Blum frameless inset (2 × 1)' },
       { value: 'hettich-sensys', label:'Hettich Sensys D0 (37 × 32)' },
+      { value:'hettich-sensys-inset',label:'Hettich Sensys inset ((38 + door) × 32)' },
       { value: 'custom', label: 'Other / Custom' },
     ], { 'data-key': 'hardware.hingePlatePattern', 'aria-label': 'Hinge plate pattern' });
-    pattern.value = hw.hingePlatePattern === 'hettich-sensys' ? 'hettich-sensys' : hw.hingePlatePattern === 'custom' ? 'custom' : hw.hingePlatePattern === 'blum-inset' ? 'blum-inset' : (matchingPattern?.[0] === 'blum-inset' ? 'blum' : matchingPattern?.[0] || 'custom');
+    pattern.value = ['hettich-sensys','hettich-sensys-inset','custom','blum-inset'].includes(hw.hingePlatePattern) ? hw.hingePlatePattern : (matchingPattern?.[0] === 'blum-inset' ? 'blum' : matchingPattern?.[0] || 'custom');
     pattern.addEventListener('change', () => {
       const preset = patterns[pattern.value];
       if (!preset) return;
@@ -1107,9 +1132,22 @@ export class CabinetForm {
       ...this._handlePositionFields(),
     );
     if (customRunners) {
-      runnerContent.append(
+      const undermountPreset=this.config.hardware.runnerMode==='richelieu-828'?'runner-richelieu-828':this.config.hardware.runnerMode==='hettich-quadro-5d'?'runner-hettich-quadro-5d':this.config.hardware.runnerMode==='hettich-quadro-2d'?'runner-hettich-quadro-2d':this.config.hardware.runnerMode==='blum-movento-763h'?'runner-blum-763h':this.config.hardware.runnerMode==='blum-tandem-563h'?'runner-blum-563h':this.config.hardware.runnerMode==='blum-tandem-563f'?'runner-blum-563f':null;
+      if(!undermountPreset) runnerContent.append(
         this._makeField('Drawer runner clearance per side', sideClearance, { unit: 'mm' }),
       );
+      if(undermountPreset) {
+        const quadro=undermountPreset.startsWith('runner-hettich-quadro');
+        const family=undermountPreset==='runner-richelieu-828'?'Richelieu 828':quadro?'Quadro':undermountPreset==='runner-blum-763h'?'MOVENTO':'TANDEM';
+        const lengthLabel=undermountPreset==='runner-richelieu-828'?'Richelieu 828 runner length':`${family} drawer length`;
+        const length=this._createSelect(hardwarePreset(undermountPreset).lengths.map(value=>({value,label:`${formatLength(value)} ${unitLabel()}`})),{'data-key':'hardware.runnerLength','data-number':'true','aria-label':lengthLabel});
+        length.value=this.config.hardware.runnerLength;
+        runnerContent.append(this._makeField(lengthLabel,length));
+        if (undermountPreset!=='runner-richelieu-828') for(const [key,label,fallback] of [['runnerPilotDiameter','Cabinet pilot diameter',3],['runnerPilotDepth','Cabinet pilot depth',8]]) {
+          runnerContent.append(this._makeField(label,this._createInput('number',{'data-key':`hardware.${key}`,value:this.config.hardware[key]??fallback,min:0,step:0.1}),{unit:'mm'}));
+        }
+        runnerContent.append(this._makeBlurb(undermountPreset==='runner-richelieu-828'?'Box cuts only. Verify the supplied runners and drill the cabinet, rear hooks and locks by hand.':quadro?'Use 1/2 or 5/8 in, or 13 or 16 mm drawer sides. Verify the mounting row against the supplied rails.':'Box width follows the actual side thickness (12–16 mm). Angled locking-device pilots require the Blum template; hardware CAD remains pending.'));
+      }
       if (this.config.hardware.runnerMode === 'side-mount') {
         const hw = this.config.hardware;
         const length = this._createInput('number', { 'data-key': 'hardware.runnerLength', value: hw.runnerLength || 500, min: 1 });
@@ -1154,6 +1192,12 @@ export class CabinetForm {
       const runnerMode = this._createSelect([
         { value: 'reference', label: 'Custom clearance / reference holes' },
         { value: 'side-mount', label: 'Side mount / length + mounting pilots' },
+        { value: 'richelieu-828', label: 'Richelieu 828 / box cuts and manual fitting' },
+        { value: 'hettich-quadro-5d', label: 'Quadro 5D V6 / Silent System preparation' },
+        { value: 'hettich-quadro-2d', label: 'Quadro 2D V6 / January 2025 preparation' },
+        { value: 'blum-tandem-563f', label: 'TANDEM 563F / drawer preparation' },
+        { value: 'blum-tandem-563h', label: 'TANDEM 563H / drawer preparation' },
+        { value: 'blum-movento-763h', label: 'MOVENTO 763H / drawer preparation' },
       ], { 'data-key': 'hardware.runnerMode', 'aria-label': 'Runner output' });
       runnerMode.value = this.config.hardware.runnerMode || 'reference';
       runnerMode.addEventListener('change', e => {
@@ -1294,13 +1338,17 @@ export class CabinetForm {
   _emitChange(autoSize = true) {
     const config = this.getConfig();
     this.config = config;
-    const warnings = validateCabinet(config);
-    this._validationEl.innerHTML = warnings.map(w => w.replace(/([0-9]+(?:\.[0-9]+)?)mm/g, (_, n) => dimension(Number(n)))).map(w => `<div class="warn">Warning: ${w}</div>`).join('');
+    this.refreshValidation();
     if (this._drawerHeightsDiv) {
       this._updateDrawerSummary(this._drawerHeightsDiv);
     }
     if (this.onChange) this.onChange(config);
     if (autoSize) this._scheduleDrawerAuto();
+  }
+
+  refreshValidation() {
+    const warnings = validateCabinet(this.config);
+    this._validationEl.innerHTML = warnings.map(w => w.replace(/([0-9]+(?:\.[0-9]+)?)mm/g, (_, n) => dimension(Number(n)))).map(w => `<div class="warn">Warning: ${w}</div>`).join('');
   }
 
   setDisplayUnits(value) {

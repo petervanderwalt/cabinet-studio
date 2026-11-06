@@ -20,6 +20,8 @@ export const FRONT_STOCKS = [
   { label: 'Oak Veneer', thickness: 18 },
   { label: 'Painted MDF', thickness: 22 },
   { label: 'Super Gloss', thickness: 18 },
+  { label: 'Compact HPL', thickness: 10 },
+  { label: 'Solid Surface', thickness: 10 },
 ];
 
 export function findStock(options, label, fallback = options[0]) {
@@ -125,8 +127,8 @@ export const STOCK_FIELDS = {
   'drawer-bottom': {material:'drawerBottomMaterial', thickness:'drawerBottomThickness'},
 };
 export const STOCK_THICKNESSES = [
-  ...[6,9,12,18,22].map(mm=>({value:`metric:${mm}`,label:`${mm} mm`,thickness:mm,units:'metric'})),
-  ...[['1/4',6.35],['1/2',12.7],['3/4',19.05]].map(([fraction,mm])=>({value:`imperial:${fraction}`,label:`${fraction}″`,thickness:mm,units:'imperial'})),
+  ...[6,9,10,12,16,18,19,22,28,30,32,34].map(mm=>({value:`metric:${mm}`,label:`${mm} mm`,thickness:mm,units:'metric'})),
+  ...[['1/4',6.35],['15/32',11.90625],['1/2',12.7],['5/8',15.875],['3/4',19.05]].map(([fraction,mm])=>({value:`imperial:${fraction}`,label:`${fraction}″`,thickness:mm,units:'imperial'})),
 ];
 export const stockMaterialName = label => String(label || '').replace(/ \([^)]*existing\)$/, '').replace(/ \d+(?:\.\d+)? mm$/, '').replace(/ \d+\/\d+ inch$/, '');
 

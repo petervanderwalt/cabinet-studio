@@ -1,6 +1,7 @@
 """Convert an Accuride 3832E AP214 assembly (requires OCP and Node).
 
 Usage: python tools/convert-accuride-cad.py path/to/Accuride_3832-E20.step
+Append --check to compare the regenerated model with the bundled mesh.
 Checks the existing 3 mm pilot centres against holes in the supplier solids.
 """
 import hashlib
@@ -25,7 +26,7 @@ from OCP.BRepClass3d import BRepClass3d_SolidClassifier
 from OCP.gp import gp_Pnt
 
 source=Path(sys.argv[1])
-part_number=re.search(r'3832-E\d+', source.name).group()
+part_number=re.search(r'3832-E\d+', source.name.upper()).group()
 length={10:250,12:300,14:350,16:400,18:450,20:500,22:550,24:600,26:650,28:700}[int(part_number.split('E')[1])]
 root=Path(__file__).resolve().parents[1]
 settings=json.loads(subprocess.check_output(['node','--experimental-default-type=module','--input-type=module','-e',
@@ -107,6 +108,11 @@ for stage,part in closed.items():
         'positions':positions,'bounds':bounds,'mountingCentres':[[0,0,d-length/2] for d in mounts.get(stage,[])]}
     print(stage,len(positions)//9,'triangles',bounds)
 output=root/f'assets/hardware/models/accuride-{part_number.lower()}.js'
-output.write_text('export default '+json.dumps(result,separators=(',',':'))+';\n',encoding='utf-8')
-output.with_suffix('.step').write_bytes(source.read_bytes())
+if sys.argv[2:]==['--check']:
+    bundled=output.read_text(encoding='utf-8').strip()
+    assert json.loads(bundled.removeprefix('export default ').removesuffix(';'))==result, output
+    print('Bundled model verified:', output.name)
+else:
+    output.write_text('export default '+json.dumps(result,separators=(',',':'))+';\n',encoding='utf-8')
+    output.with_suffix('.step').write_bytes(source.read_bytes())
 print('Pilot clearance checked; CAD travel',result['travel'],'middle travel',result['intermediateTravel'])

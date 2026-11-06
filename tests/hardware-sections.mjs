@@ -33,6 +33,15 @@ try {
     assert.ok(edited.input.options.some(option=>option.label==='Dowels — edited dimensions'));
     assert.equal(form.config.hardware.dowelDiameter,10,'existing joint dimensions remain unchanged');
     assert.equal(fields.filter(f=>f.label==='Handles / knobs').length,0);
+    if (mode === 'doors') {
+      form.config=applyHardwarePreset(form.config,'hinge-blum-71b3550');
+      fields.length=0;form._hardwareFields();
+      assert.equal(fields.find(f=>f.label==='Hinge').input.value,'hinge-blum-71b3550');
+      assert.ok(!fields.some(f=>f.label==='Hinge plate'));
+      form.config=applyHardwarePreset(form.config,'plate-hettich-9071575');
+      fields.length=0;form._hardwareFields();
+      assert.equal(fields.find(f=>f.label==='Hinge plate').input.value,'plate-hettich-9071575');
+    }
   }
 }finally{globalThis.document=oldDocument;}
 console.log('PASS: joinery belongs to Construction; preset handles hide drilling overrides and retain positioning for doors/drawers');

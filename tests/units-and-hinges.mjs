@@ -131,6 +131,7 @@ assert.equal(nominal.drawers.sideThickness,12.7);
 console.log('PASS: colour-aware stock identity, separate nesting groups, saved colours and nominal thickness migration');
 
 const { sharedStockChoices, STOCK_FIELDS } = await import('../js/material-presets.js');
+for (const mm of [16,19,28,30,32,34]) assert.ok(sharedStockChoices().thicknesses.some(stock=>stock.value===`metric:${mm}`));
 const shared = sharedStockChoices([{stockSelections:{rear:{material:'Custom board',colour:'Blue',thickness:15.5}}}]);
 assert.ok(shared.materials.includes('Custom board'));
 assert.ok(shared.colours.includes('Blue'));

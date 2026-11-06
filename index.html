@@ -990,6 +990,10 @@
       cursor: pointer;
     }
 
+    .viewport-toggle input[type="range"] {
+      width: 80px;
+    }
+
     #viewport-container::after {
       content: "Click doors and drawers to preview movement";
       position: absolute;
@@ -1752,6 +1756,10 @@
               <input id="show-edges-toggle" type="checkbox" checked>
               <span>Show Edges</span>
             </label>
+            <label class="viewport-toggle" for="panel-opacity">
+              <span>Panel opacity</span>
+              <input id="panel-opacity" type="range" min="0" max="100" value="100">
+            </label>
           </div>
         </div>
       </div>
@@ -1810,6 +1818,6 @@
       </div>
     </div>
   </div>
-  <script type="module" src="js/main.js?v=20261106-stock"></script>
+  <script type="module" src="js/main.js?v=20261106ar"></script>
 </body>
 </html>

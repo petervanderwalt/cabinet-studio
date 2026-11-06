@@ -1,12 +1,12 @@
-import { computePanels } from './cabinet-math.js?v=20261105i';
+import { computePanels } from './cabinet-math.js?v=20261106aq';
 import { requestCad } from './cad-client.js?v=20261103s';
 import { basicPanelGeometry, machinedPanelGeometry } from './panel-mesh.js';
 import { createPanelMaterial, disposePanelMaterial } from './viewport-materials.js';
-import { addHardwareModels } from './hardware-view.js?v=20261105a';
+import { addHardwareModels } from './hardware-view.js?v=20261106ar';
 import { formatLength, isImperial, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { downloadProjectFile } from './dxf-writer.js?v=20261105i';
+import { downloadProjectFile } from './dxf-writer.js?v=20261106aq';
 import {
   autoArrangeProject,
   createProjectFromConfig,
@@ -15,7 +15,7 @@ import {
   normalizeProject,
   updatePlacement,
   updateRoom,
-} from './project-io.js?v=20261105i';
+} from './project-io.js?v=20261106aq';
 
 const LAYOUT_SEED_KEY = 'cabinet-studio-layout-seed';
 const POSITION_SNAP = 10;
@@ -461,7 +461,7 @@ class KitchenLayoutViewport {
     // Invisible footprint retains cabinet-level picking and placement snapping.
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(size.width, size.height, size.depth),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
-    mesh.userData = { instanceId: instance.instanceId, configKey: key, detailed: false };
+    mesh.userData = { instanceId: instance.instanceId, configKey: key, detailed: false, pendingHardware: 0 };
     const panels = computePanels(instance.config);
     const panelMeshes = new Map();
     for (const panel of panels) {
@@ -471,7 +471,11 @@ class KitchenLayoutViewport {
       part.rotation.y = Math.PI;
       part.userData.isCabinetPanel = true;
       this._addPanelEdges(part);
-      addHardwareModels(part, panel);
+      mesh.userData.pendingHardware += addHardwareModels(part, panel, loaded => {
+        mesh.userData.pendingHardware--;
+        if (!loaded) mesh.userData.hardwareUnavailable = true;
+        this.requestRender();
+      });
       mesh.add(part);
       panelMeshes.set(panel.id, { part, panel });
     }
@@ -510,9 +514,12 @@ class KitchenLayoutViewport {
     if (!status) return;
     const meshes = [...this.meshByInstanceId.values()];
     const pending = meshes.filter(mesh => !mesh.userData.detailed && !mesh.userData.detailError).length;
+    const pendingHardware = meshes.some(mesh => mesh.userData.pendingHardware > 0);
     status.textContent = pending ? `Updating cabinet details (${meshes.length - pending}/${meshes.length})…`
-      : meshes.some(mesh => mesh.userData.detailError) ? 'Some machined details unavailable; panel shapes retained.' : 'Ready';
-    status.setAttribute('aria-busy', String(pending > 0));
+      : pendingHardware ? 'Loading hardware…'
+      : meshes.some(mesh => mesh.userData.detailError) ? 'Some machined details unavailable; panel shapes retained.'
+      : meshes.some(mesh => mesh.userData.hardwareUnavailable) ? 'Some hardware models unavailable.' : 'Ready';
+    status.setAttribute('aria-busy', String(pending > 0 || pendingHardware));
   }
 
   _applySelectionStyles() {

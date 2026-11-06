@@ -6,9 +6,26 @@ import {buildCadPanel} from '../js/cad-solids.js?v=20261103d';
 import {setDetailMachining} from '../js/detail-machining.js?v=20261103c';
 import {defaultCabinet,computePanels,validateCabinet} from '../js/cabinet-math.js';
 import {panelBores} from '../js/panel-bores.js?v=20261103c';
+import {panelSolidData} from '../js/panel-solid.js';
+globalThis.window ??= {};
+const {panelToDxf} = await import('../js/dxf-writer.js');
 
 setOC(await initOC({print:()=>{},wasmBinary:readFileSync(new URL('../lib/cad/replicad_single.wasm',import.meta.url))}));
 const near=(a,b)=>assert.ok(Math.abs(a-b)<0.002,`${a} != ${b}`);
+const drawerBack = {
+  id:'drawer-1-back', type:'drawer-box', name:'Drawer back', sizeX:300, sizeY:100, sizeZ:16,
+  cutWidth:300, cutHeight:100, cutThickness:16, notches:[
+    {x:0,y:0,width:37,height:12.7}, {x:263,y:0,width:37,height:12.7},
+  ],
+};
+const backVolume = (300*100 - 2*37*12.7)*16;
+near(panelSolidData(drawerBack).volume, backVolume);
+const backSolid = buildCadPanel(drawerBack);
+near(measureVolume(backSolid), backVolume);
+backSolid.delete();
+const backDxf = panelToDxf(drawerBack);
+assert.match(backDxf, /\n10\n37\n20\n12\.7\n/);
+assert.match(backDxf, /\n10\n263\n20\n12\.7\n/);
 const panel={id:'door-1',name:'Test',type:'door',sizeX:100,sizeY:150,sizeZ:18,cutWidth:100,cutHeight:150,cutThickness:18,
   grooves:[],notches:[],holes:[],detailPaths:[[{x:50,y:25},{x:50,y:125}]],detailPathsClosed:false};
 for(const angle of [60,90,120]) {

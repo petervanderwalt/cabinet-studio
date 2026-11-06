@@ -123,15 +123,31 @@ console.log('PASS: unique mating joint IDs across cabinet copies and unsupported
 const insetHinge = applyHardwarePreset(base, 'cup-blum-inset');
 insetHinge.overlay.type = 'inset';
 const insetPlate = applyHardwarePreset(insetHinge, 'plate-blum-inset');
-assert.ok(validateCabinet(insetPlate).some(w => w.includes('standard overlay hinges')));
+assert.ok(validateCabinet(insetPlate).some(w => w.includes('Blum 71B3750: cup bore only')));
+assert.ok(validateCabinet(insetPlate).every(w => !w.includes('Inset doors require fully cranked hinges')));
 for (const thickness of [18, 22]) {
   insetPlate.materials.doorThickness = thickness;
-  const sides = computePanels(insetPlate).filter(p => p.id.startsWith('side-'));
+  const panels = computePanels(insetPlate);
+  const doors = machiningSchedule(panels).panels.filter(p => p.id.startsWith('door-'));
+  assert.equal(doors.length, 2);
+  for (const door of doors) {
+    assert.ok(door.warnings.some(w => w.includes('45 × 9.5 mm pattern')));
+    assert.ok(door.faceBores.some(b => b.purpose === 'hinge-cup'));
+    assert.ok(!door.faceBores.some(b => b.purpose === 'hinge-cup-fixing'));
+  }
+  const sides = panels.filter(p => p.id.startsWith('side-'));
   for (const side of sides) {
     const expected = 38.5 + thickness;
     assert.ok(side.holes.filter(h => h.purpose === 'hinge-mounting-plate').every(h => Math.abs(h.x - (side.id === 'side-right' ? side.cutWidth - expected : expected)) < 1e-8));
     assert.equal(side.holes.filter(h => h.purpose === 'hinge-mounting-plate').length, 4);
   }
+}
+for (const type of ['full-overlay','partial-overlay']) {
+  const overlay=structuredClone(insetPlate);
+  overlay.overlay.type=type;
+  const schedule=machiningSchedule(computePanels(overlay));
+  assert.ok(schedule.panels.every(p=>p.faceBores.every(b=>!b.purpose.startsWith('hinge-'))));
+  assert.ok(schedule.panels.some(p=>p.warnings.some(w=>w.includes('Blum 71B3750 requires inset doors'))));
 }
 insetPlate.construction = 'face-frame';
 assert.equal(computePanels(insetPlate).flatMap(p => p.holes).filter(h => h.purpose === 'hinge-mounting-plate').length, 0);

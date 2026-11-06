@@ -6,7 +6,7 @@ import { panelSolidData } from './panel-solid.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createPanelMaterial, disposePanelMaterial } from './viewport-materials.js';
-import { addHardwareModels } from './hardware-view.js?v=20261105a';
+import { addHardwareModels } from './hardware-view.js?v=20261106ar';
 
 export class CabinetViewport {
   constructor(container, onPanelSelect) {
@@ -16,6 +16,7 @@ export class CabinetViewport {
     this.interactiveMeshes = [];
     this.animStates = new Map();
     this.showEdges = false;
+    this.panelOpacity = 1;
     this._renderRequested = false;
     this._isDisposed = false;
     this._lastHoverMesh = null;
@@ -212,11 +213,24 @@ export class CabinetViewport {
     if (this._panels) this.update(this._panels);
   }
 
-  update(panels) {
+  update(panels, cabinetId = this._cabinetId) {
+    if (cabinetId !== this._cabinetId) this._explodedPoses = undefined;
+    const previousStates = cabinetId === this._cabinetId
+      ? this._explodedPoses ?? new Map(this.animStates)
+      : new Map();
+    if (this.exploded) {
+      this._explodedPoses ??= new Map(Array.from(previousStates, ([id, {type,current,target}]) =>
+        [id, {type,current,target}]));
+    } else {
+      this._explodedPoses = undefined;
+    }
+    this._cabinetId = cabinetId;
     this._panels = panels;
     const assembledPanels = panels;
     if (this.exploded) panels = explodedPanels(panels);
     const revision = this._cadRevision = (this._cadRevision || 0) + 1;
+    this._pendingHardware = 0;
+    this._hardwareUnavailable = false;
     this._clearScene();
 
     this.animStates.clear();
@@ -267,7 +281,13 @@ export class CabinetViewport {
     for (const p of panels) {
       if (this.exploded) {
         const mesh = this._buildPanelMesh(p);
-        if (mesh) this.panelGroup.add(mesh);
+        if (mesh) {
+          for (const hardware of mesh.children) {
+            if (hardware.userData.closedOnly) hardware.visible = false;
+            if (hardware.userData.openOnly) hardware.visible = true;
+          }
+          this.panelGroup.add(mesh);
+        }
       } else if (p.type === 'door') {
         this._addDoor(p);
       } else if (p.type === 'drawer' || p.type === 'drawer-box') {
@@ -282,6 +302,12 @@ export class CabinetViewport {
       this._addDrawerGroup(drawerPanels);
     }
 
+    for (const [id, state] of this.animStates) {
+      const previous = previousStates.get(id);
+      if (previous?.type !== state.type) continue;
+      state.current = Math.min(previous.current, state.max);
+      state.target = previous.target > 0 ? state.max : 0;
+    }
     this._requestRender();
     this._loadMachinedGeometry(assembledPanels,revision);
   }
@@ -319,6 +345,7 @@ export class CabinetViewport {
         this._addEdgeHelper(mesh,geometry);
       }
       this._readyRevision = revision;
+      if (this._pendingHardware > 0) this._setCadStatus('Loading hardware…', true);
       this._requestRender();
     } catch (error) {
       if (revision === this._cadRevision) this._setCadStatus(`Detailed geometry unavailable: ${error.message}`);
@@ -333,6 +360,21 @@ export class CabinetViewport {
       }
     });
     this._requestRender();
+  }
+
+  setPanelOpacity(opacity) {
+    this.panelOpacity = opacity;
+    for (const { mesh } of this.interactiveMeshes) this._applyPanelOpacity(mesh);
+    this._requestRender();
+  }
+
+  _applyPanelOpacity(mesh) {
+    const material = mesh.material;
+    const transparent = this.panelOpacity < 1;
+    if (material.transparent !== transparent) material.needsUpdate = true;
+    material.transparent = transparent;
+    material.opacity = this.panelOpacity;
+    material.depthWrite = !transparent;
   }
 
   _addDoor(p) {
@@ -354,6 +396,7 @@ export class CabinetViewport {
     this.animStates.set(p.id, {
       type: 'door',
       closedHardware:mesh.children.filter(child => child.userData.closedOnly),
+      openHardware:mesh.children.filter(child => child.userData.openOnly),
       pivotGroup: pivot,
       sign,
       pivotBaseX: pivotX,
@@ -363,7 +406,7 @@ export class CabinetViewport {
       hingeForwardTravel: Math.max(25, doorThickness * 1.4),
       current: 0,
       target: 0,
-      max: THREE.MathUtils.degToRad(110),
+      max: THREE.MathUtils.degToRad(Math.min(110, p.hingeOpeningLimit ?? 110)),
     });
   }
 
@@ -393,9 +436,11 @@ export class CabinetViewport {
 
 
     const drawDepth = frontPanel?.drawDepth || 400;
-    const runnerRails = [];
+    const runnerRails = [], closedHardware = [];
     this.panelGroup.traverse(node => {
-      if (node.userData.runnerStage === 'intermediate' && node.userData.drawerId === frontPanel?.id) runnerRails.push(node);
+      if (node.userData.drawerId !== frontPanel?.id) return;
+      if (node.userData.runnerStage === 'intermediate') runnerRails.push(node);
+      if (node.userData.closedOnly) closedHardware.push(node);
     });
     this.animStates.set(frontPanel?.id || `drawer-${Date.now()}`, {
       type: 'drawer',
@@ -403,7 +448,7 @@ export class CabinetViewport {
       current: 0,
       target: 0,
       max: frontPanel?.runnerTravel || drawDepth * 0.8,
-      runnerRails,
+      runnerRails, closedHardware,
     });
   }
 
@@ -411,7 +456,7 @@ export class CabinetViewport {
     const hasNotch = p.notches && p.notches.length > 0;
     let geometry;
 
-    if (p.grooves?.some(g => g.depth > 0)) {
+    if (p.grooves?.some(g => g.depth > 0) || (hasNotch && p.type === 'drawer-box' && p.id.endsWith('-back'))) {
       // Avoid coplanar contact flicker at fitted rebate edges; cut sizes stay exact.
       const solid = panelSolidData(p, 0.02);
       geometry = new THREE.BufferGeometry();
@@ -427,12 +472,19 @@ export class CabinetViewport {
     const material = createPanelMaterial(p);
 
     const mesh = new THREE.Mesh(geometry, material);
+    this._applyPanelOpacity(mesh);
     this.interactiveMeshes.push({ mesh, panel: p });
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this._addEdgeHelper(mesh, geometry);
     this._addHoleMarkers(mesh, p);
-    addHardwareModels(mesh, p);
+    const revision = this._cadRevision;
+    this._pendingHardware += addHardwareModels(mesh, p, loaded => {
+      if (revision !== this._cadRevision) return;
+      this._pendingHardware--;
+      if (!loaded) this._hardwareUnavailable = true;
+      this._requestRender();
+    }, true);
     for (const path of p.detailMachining ? [] : p.detailPaths || []) {
       const points = path.map(point => new THREE.Vector3(point.x - p.cutWidth / 2, point.y - p.cutHeight / 2, -p.sizeZ / 2 - 0.3));
       const DetailLine = p.detailPathsClosed === false ? THREE.Line : THREE.LineLoop;
@@ -633,21 +685,24 @@ export class CabinetViewport {
       }
       if (state.type === 'door') {
         this._applyConcealedHingeMotion(state);
-        for (const model of state.closedHardware || []) model.visible = state.current < 0.001;
       } else if (state.type === 'drawer') {
         state.group.position.z = -state.current;
         for (const rail of state.runnerRails || []) rail.position.z = rail.userData.baseZ - state.current * (rail.userData.travelFactor ?? 0.5);
       }
+      for (const model of state.closedHardware || []) model.visible = state.current < 0.001;
+      for (const model of state.openHardware || []) model.visible = state.current >= 0.001;
     }
 
     this._updateFog();
     this.renderer.render(this.scene, this.camera);
-    if (this._readyRevision === this._cadRevision) {
+    if (this._readyRevision === this._cadRevision && !(this._pendingHardware > 0)) {
       const revision = this._readyRevision;
       this._readyRevision = null;
       // Keep busy through the frame that presents the uploaded geometry.
       requestAnimationFrame(() => {
-        if (!this._isDisposed && revision === this._cadRevision) this._setCadStatus('Ready');
+        if (!this._isDisposed && revision === this._cadRevision) {
+          this._setCadStatus(this._hardwareUnavailable ? 'Some hardware models unavailable.' : 'Ready');
+        }
       });
     }
     if (this.cube) {

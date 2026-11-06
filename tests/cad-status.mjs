@@ -24,6 +24,16 @@ render();
 context._isDisposed = true;
 callbacks.shift()();
 assert.equal(calls.filter(c => c === 'Ready').length, 1);
+context._isDisposed = false;
+context._readyRevision = 3;
+context._pendingHardware = 1;
+render();
+assert.equal(callbacks.length, 0, 'pending hardware keeps the model busy');
+context._pendingHardware = 0;
+context._hardwareUnavailable = true;
+render();
+callbacks.shift()();
+assert.equal(calls.at(-1), 'Some hardware models unavailable.');
 console.log('PASS: Ready waits for rendered frame, ignores superseded builds and disposed viewports');
 
 const setter = source.match(/  _setCadStatus\(text, busy = false\) \{([\s\S]*?)\n  \}\n/)[1];

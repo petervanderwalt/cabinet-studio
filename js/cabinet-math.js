@@ -1,13 +1,14 @@
 import { setDetailMachining } from './detail-machining.js?v=20261103c';
-import { runnerSettings } from './runner-layout.js?v=20261105a';
-import { frontLayout, drawerBoxBounds, rearInset } from './front-layout.js?v=20261105i';
+import { runnerSettings } from './runner-layout.js?v=20261105g';
+import { frontLayout, drawerBoxBounds, rearInset } from './front-layout.js?v=20261105j';
 import { doorDetailPath, doorSlatPaths } from './door-detail.js?v=20261020o';
-import { splitStockAppearance } from './material-presets.js?v=20261020f';
-import { hardwareWarnings, selectedHardware } from './hardware-library.js?v=20261105i';
-import { handleModelPlacement } from './hardware-models.js?v=20261105a';
-import { addRunnerPreviews } from './runner-preview.js?v=20261105a';
-import { addSensysHardware } from './hinge-layout.js';
-import { addDowelJoinery, addOutsideScrewJoinery } from './joinery.js?v=20261105i';
+import { splitStockAppearance } from './material-presets.js?v=20261106aq';
+import { hardwareWarnings, selectedHardware } from './hardware-library.js?v=20261106aq';
+import { HARDWARE_MODELS, handleModelPlacement } from './hardware-models.js?v=20261106aq';
+import { addRunnerPreviews } from './runner-preview.js?v=20261106aq';
+import { addHingeHardware } from './hinge-layout.js?v=20261106aq';
+import { addUndermountRunnerPreparation } from './blum-runner-layout.js?v=20261106aq';
+import { addDowelJoinery, addOutsideScrewJoinery } from './joinery.js?v=20261105j';
 import { addCamJoinery } from './cam-joinery.js?v=20261022e';
 import { addDados } from './dado-joinery.js?v=20261022e';
 import { addCabineoJoinery } from './cabineo-joinery.js?v=20261022e';
@@ -111,8 +112,8 @@ export function defaultCabinet() {
 }
 
 /**
- * @param {import('./cabinet-math.js').Cabinet} cabinet
- * @returns {import('./cabinet-math.js').Panel[]}
+ * @param {import('./cabinet-math.js?v=20261105j').Cabinet} cabinet
+ * @returns {import('./cabinet-math.js?v=20261105j').Panel[]}
  */
 export function computePanels(cabinet) {
   const panels = [];
@@ -131,12 +132,18 @@ export function computePanels(cabinet) {
   const bottomY = tkHeight;
 
   const hw = cabinet.hardware;
+  const hardwarePresets = selectedHardware(cabinet);
+  const incompatibleBlumCup = hardwarePresets.some(p =>
+    (p.id === 'cup-blum-inset' && !isInset)
+    || (p.pairedPreset === 'plate-blum-173h7100' && cabinet.overlay.type !== (p.blumInset?'inset':'full-overlay')));
+  const skipGenericBlumPlate = (!isInset && hw.hingePlatePattern === 'blum-inset')
+    || (hw.library?.hingeCup === 'hinge-blum-71b3750' && hw.library?.hingePlate === 'plate-blum-173h7100');
   const hingeBoreDia = hw.hingeBoreDiameter ?? DEFAULT_VALUES.hingeBoreDiameter;
   const hingeBoreInset = hw.hingeBoreInset ?? DEFAULT_VALUES.hingeBoreInset;
   const pinSpacing = hw.shelfPinSpacing ?? DEFAULT_VALUES.shelfPinSpacing;
   const pinSetback = hw.shelfPinSetback ?? DEFAULT_VALUES.shelfPinSetback;
   const hingePlateFrontHoleOffset = (hw.hingePlateFrontHoleOffset ?? DEFAULT_VALUES.hingePlateFrontHoleOffset)
-    + (hw.hingePlatePattern === 'blum-inset' ? cabinet.materials.doorThickness + 1.5 : 0);
+    + (hw.hingePlatePattern === 'blum-inset' ? cabinet.materials.doorThickness + 1.5 : hw.hingePlatePattern === 'hettich-sensys-inset' ? cabinet.materials.doorThickness : 0);
   const hingePlateRearHoleOffset = hw.hingePlateRearHoleOffset ?? DEFAULT_VALUES.hingePlateRearHoleOffset;
   const hingePlateHoleSpacing = hw.hingePlateHoleSpacing ?? DEFAULT_VALUES.hingePlateHoleSpacing;
   const handleHoleSpacing = hw.handleHoleSpacing ?? DEFAULT_VALUES.handleHoleSpacing;
@@ -198,29 +205,84 @@ export function computePanels(cabinet) {
     };
   }
 
+  const handle = hardwarePresets.find(p => p.category === 'handles');
+  const fittedHandle = handle?.keepWithinFront || hw.handleType === 'knob' ? HARDWARE_MODELS[handle?.model] : null;
+
   function addHandleHoles(panel, centerX, centerY, vertical) {
     if (hw.handleType === 'none') return;
     const knob = hw.handleType === 'knob';
+    if (knob) vertical = false;
     if (!knob && !(handleHoleSpacing > 0)) return;
     const diameter = hw.handleHoleDiameter ?? 5;
     const half = knob ? 0 : handleHoleSpacing / 2;
     const margin = diameter / 2 + 2;
-    const minX = margin + (vertical ? 0 : half);
-    const minY = margin + (vertical ? half : 0);
+    const [[lowAlong, highAlong], [lowAcross, highAcross]] = fittedHandle?.bounds ?? [[0, 0], [0, 0]];
+    const minX = vertical ? Math.max(margin, highAcross) : Math.max(margin + half, -lowAlong);
+    const minY = vertical ? Math.max(margin + half, -lowAlong) : Math.max(margin, -lowAcross);
+    const maxX = panel.cutWidth - (vertical ? Math.max(margin, -lowAcross) : Math.max(margin + half, highAlong));
+    const maxY = panel.cutHeight - (vertical ? Math.max(margin + half, highAlong) : Math.max(margin, highAcross));
     if (![diameter, half, centerX, centerY].every(Number.isFinite) || diameter <= 0 ||
-      panel.cutWidth < minX * 2 || panel.cutHeight < minY * 2) {
-      (panel.hardwareWarnings ||= []).push(`${panel.name}: handle pattern cannot fit; choose smaller centres or a knob. Handle bores omitted.`);
+      maxX < minX || maxY < minY) {
+      const fitWarning = fittedHandle && knob ? 'selected knob cannot fit; choose a smaller knob'
+        : fittedHandle ? 'selected handle cannot fit; choose a smaller handle or a knob'
+        : 'handle pattern cannot fit; choose smaller centres or a knob';
+      (panel.hardwareWarnings ||= []).push(`${panel.name}: ${fitWarning}. Handle bores omitted.`);
       return;
     }
-    const x = Math.max(minX, Math.min(panel.cutWidth - minX, centerX));
-    const y = Math.max(minY, Math.min(panel.cutHeight - minY, centerY));
+    const x = Math.max(minX, Math.min(maxX, centerX));
+    const y = Math.max(minY, Math.min(maxY, centerY));
+    const recessed = handle?.recessed;
+    const roundRecessDepth = handle?.roundRecessDepth;
+    const roundPocketDiameter = handle?.roundPocketDiameter;
+    if (roundPocketDiameter && Math.abs(panel.cutThickness-19)>0.001) {
+      (panel.hardwareWarnings ||= []).push(`${panel.name}: The Touch-in pull requires a 19 mm front. Pocket and bores omitted.`);
+      return;
+    }
+    if ((recessed || roundRecessDepth) && panel.cutThickness < 16) {
+      (panel.hardwareWarnings ||= []).push(`${panel.name}: The recessed pull requires a front at least 16 mm thick. Pocket and bores omitted.`);
+      return;
+    }
+    const pocketDepth = roundRecessDepth ?? 11.2;
+    if (recessed || roundRecessDepth) {
+      const halfWidth = vertical ? highAcross : highAlong;
+      const halfHeight = vertical ? highAlong : highAcross;
+      const overlapsHandle = (left,bottom,right,top,margin) =>
+        right+margin > x-halfWidth && left-margin < x+halfWidth &&
+        top+margin > y-halfHeight && bottom-margin < y+halfHeight;
+      const hitsHinge = recessed && panel.holes.some(h => h.purpose === 'hinge-cup'
+        && (h.depth ?? 13)+pocketDepth >= panel.cutThickness
+        && overlapsHandle(h.x,h.y,h.x,h.y,h.diameter/2));
+      const cut = panel.detailMachining;
+      const radius = cut?.tool === 'v-bit' ? cut.depth*Math.tan(cut.angle*Math.PI/360) : cut?.diameter/2;
+      const hitsRouting = cut && panel.detailPaths.some(path => path.some((a,i) => {
+        const b = path[i+1] ?? (panel.detailPathsClosed === false ? a : path[0]);
+        return overlapsHandle(Math.min(a.x,b.x),Math.min(a.y,b.y),Math.max(a.x,b.x),Math.max(a.y,b.y),radius);
+      }));
+      if (hitsHinge || hitsRouting) {
+        (panel.hardwareWarnings ||= []).push(`${panel.name}: Recessed pull machining omitted because it overlaps ${hitsHinge ? 'a hinge cup' : 'decorative routing'}. Move the handle or adjust the machining.`);
+        return;
+      }
+    }
     panel.handlePlacement = { requestedX: centerX, requestedY: centerY, x, y };
     if (x !== centerX || y !== centerY) {
       (panel.hardwareWarnings ||= []).push(`${panel.name}: handle centre adjusted to x=${x}mm, y=${y}mm from the panel lower-left to fit ${knob ? 'the knob' : `${handleHoleSpacing}mm centres`}. Requested offsets are retained.`);
     }
-    const bore = { diameter, purpose: 'handle', depth: panel.cutThickness, face: 'front' };
+    if (recessed) {
+      const length = handleHoleSpacing+11.2;
+      const width = vertical ? 30.5 : length, height = vertical ? length : 30.5;
+      panel.grooves.push({x:x-width/2,y:y-height/2,width,height,depth:pocketDepth,face:'front',purpose:'handle-recess'});
+      for (const dx of [-width/2,width/2]) for (const dy of [-height/2,height/2]) {
+        panel.holes.push({x:x+dx,y:y+dy,diameter:3,depth:pocketDepth,face:'front',purpose:'handle-corner-relief'});
+      }
+    }
+    if (roundPocketDiameter) panel.holes.push({x,y,diameter:roundPocketDiameter,depth:pocketDepth,face:'front',purpose:'handle-pocket'});
+    const bore = { diameter, purpose:'handle', depth:roundPocketDiameter ? panel.cutThickness-pocketDepth :
+      recessed ? Number((panel.cutThickness-11).toFixed(3)) : roundRecessDepth ?? panel.cutThickness,
+      face:recessed || roundPocketDiameter ? 'back' : 'front' };
     if (knob) panel.holes.push({ ...bore, x, y });
-    else for (const sign of [-1, 1]) panel.holes.push({ ...bore, x: x + (vertical ? 0 : sign * half), y: y + (vertical ? sign * half : 0) });
+    else for (const sign of fittedHandle?.mountingCentres.length === 3 ? [-1, 0, 1] : [-1, 1]) {
+      panel.holes.push({ ...bore, x: x + (vertical ? 0 : sign * half), y: y + (vertical ? sign * half : 0) });
+    }
   }
 
   const caseColor = 0xB7C8E6;
@@ -314,7 +376,8 @@ export function computePanels(cabinet) {
     }
 
     // Hinge mounting plate holes (on the 32mm line near the front edge)
-    if (doorCount > 0 && drawerCount === 0 && !((hw.library?.hingePlate === 'plate-37-32' || hw.hingePlatePattern === 'blum-inset') && !isFrameless)) {
+    if (doorCount > 0 && drawerCount === 0 && !incompatibleBlumCup && !skipGenericBlumPlate
+      && hw.library?.hingePlate !== 'plate-hettich-9071575-d2' && !((['plate-37-32','plate-blum-173h7100','plate-hettich-9071570','plate-hettich-9071575','plate-hettich-9071576','plate-hettich-9071576-a2'].includes(hw.library?.hingePlate) || ['blum-inset','hettich-sensys-inset'].includes(hw.hingePlatePattern)) && !isFrameless)) {
       const hingeSide = cabinet.doors.hingeSide ?? 'both';
       const needsHingePlates = hingeSide === 'both' || hingeSide === side;
       if (needsHingePlates) {
@@ -754,7 +817,7 @@ export function computePanels(cabinet) {
         ? [100, dh - 100]
         : [100, dh / 2, dh - 100];
 
-      for (const hy of hingePositions) {
+      for (const hy of incompatibleBlumCup ? [] : hingePositions) {
         let hx;
         if (hingeSide === 'left') {
           hx = hingeBoreInset;
@@ -942,19 +1005,22 @@ export function computePanels(cabinet) {
     }
   }
 
+  const undermountRunnerWarnings=addUndermountRunnerPreparation(panels,cabinet,makePanel);
   const drillingWarnings = [];
   for (const panel of panels) {
     const invalidPurposes = new Set();
     panel.holes = panel.holes.filter(h => {
-      if (h.purpose === 'handle' && hw.handleType != null) { h.depth = panel.cutThickness; h.face = 'front'; }
+      if (h.purpose === 'handle' && hw.handleType != null && h.face !== 'back') { h.depth ??= panel.cutThickness; h.face = 'front'; }
       const newDimensions = (h.purpose === 'handle' && hw.handleHoleDiameter != null)
         || (h.purpose === 'shelf-pin' && hw.shelfPinDiameter != null)
         || (h.purpose === 'hinge-mounting-plate' && hw.hingePlateDiameter != null);
       if (h.depth == null && !newDimensions) return true; // Preserve unspecified legacy drilling.
       const r = h.diameter / 2;
+      // Blum specifies a 10 mm rear hook bore in 15/32-inch stock.
+      const backing = ['movento-rear-hook','tandem-rear-hook'].includes(h.purpose) ? 15*25.4/32 - 10 : 2;
       const valid = Number.isFinite(r) && r > 0 && (h.depth == null || (Number.isFinite(h.depth) && h.depth > 0)) &&
         h.x >= r && h.x <= panel.cutWidth - r && h.y >= r && h.y <= panel.cutHeight - r &&
-        (h.depth == null || h.purpose === 'handle' || h.depth <= panel.cutThickness - 2);
+        (h.depth == null || h.purpose === 'handle' || h.depth <= panel.cutThickness - backing);
       if (!valid) {
         invalidPurposes.add(h.purpose);
         drillingWarnings.push(`${panel.name}: invalid ${h.purpose} pattern omitted; check depth, diameter and edge clearance.`);
@@ -964,14 +1030,22 @@ export function computePanels(cabinet) {
     panel.holes = panel.holes.filter(h => !invalidPurposes.has(h.purpose));
   }
   const joineryWarnings = [...addOutsideScrewJoinery(panels, cabinet), ...addDowelJoinery(panels, cabinet), ...addCamJoinery(panels, cabinet), ...addDados(panels, cabinet), ...addCabineoJoinery(panels, cabinet)];
-  const handle = selectedHardware(cabinet).find(p => p.category === 'handles');
-  for (const panel of panels) {
-    const models = handleModelPlacement(panel, handle);
-    if (models.length) panel.hardwareModels = models;
-  }
   addRunnerPreviews(panels, cabinet);
-  const hingeWarnings = addSensysHardware(panels, cabinet);
-  if (panels.length) panels[0].hardwareWarnings = [...new Set([...(panels[0].hardwareWarnings || []), ...hardwareWarnings(cabinet), ...boxWarnings, ...drillingWarnings, ...joineryWarnings, ...hingeWarnings])];
+  const hingeWarnings = addHingeHardware(panels, cabinet);
+  for (const panel of panels) {
+    const hingeBores = panel.holes.filter(h => h.purpose === 'hinge-cup' || h.purpose === 'hinge-cup-fixing');
+    const conflicts = panel.holes.some(h => (h.purpose === 'handle' || h.purpose === 'handle-pocket') && h.face === 'front' &&
+      hingeBores.some(bore => h.depth+(bore.depth ?? panel.cutThickness) > panel.cutThickness &&
+        Math.hypot(h.x-bore.x,h.y-bore.y) < (h.diameter+bore.diameter)/2));
+    if (conflicts) {
+      panel.holes = panel.holes.filter(h => h.purpose !== 'handle' && h.purpose !== 'handle-pocket');
+      delete panel.handlePlacement;
+      (panel.hardwareWarnings ||= []).push(`${panel.name}: Handle bores omitted because they intersect hinge drilling. Move the handle.`);
+    }
+    const models = handleModelPlacement(panel, handle);
+    if (models.length) (panel.hardwareModels ||= []).push(...models);
+  }
+  if (panels.length) panels[0].hardwareWarnings = [...new Set([...(panels[0].hardwareWarnings || []), ...hardwareWarnings(cabinet), ...boxWarnings, ...drillingWarnings, ...joineryWarnings, ...hingeWarnings,...undermountRunnerWarnings])];
   return panels;
 }
 
