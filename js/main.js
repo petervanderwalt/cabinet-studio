@@ -2,8 +2,8 @@ import { downloadCabinetStep } from './step-writer.js?v=20261103s';
 import { initTabletViews } from './tablet-ui.js?v=20261102a';
 import { dimension, formatLength, getUnits, lengthInput, readLength, stockDimension, unitLabel } from './units.js?v=20261020h';
 // main.js - Application entry point
-import { CabinetViewport } from './three-viewport.js?v=20261106ar';
-import { CabinetForm } from './form-ui.js?v=20261106aq';
+import { CabinetViewport } from './three-viewport.js?v=20261106as';
+import { CabinetForm } from './form-ui.js?v=20261106at';
 import { computePanels } from './cabinet-math.js?v=20261106aq';
 import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261106aq';
 import { buildNestingPlan } from './nesting.js?v=20261105h';

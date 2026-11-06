@@ -3,9 +3,47 @@ import { frontLayout } from './front-layout.js?v=20261105j';
 import { additionalDrawerHeight, distributeDrawerHeights } from './drawer-heights.js';
 import { dimension, formatLength, parseLength, getUnits, lengthInput, readLength, setUnits, unitLabel } from './units.js?v=20261020h';
 // form-ui.js - Build and manage the cabinet config form
-import { defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261106aq';
+import { computePanels, defaultCabinet, inferFrontMode, validateCabinet } from './cabinet-math.js?v=20261106aq';
 import { applyGlobalMaterialSelections, defaultStockMaterials } from './material-presets.js?v=20261106aq';
 import { CONNECTOR_REFERENCES, HARDWARE_CATEGORIES, HARDWARE_LIBRARY, THIN_HINGE_SCREWS, applyHardwarePreset, hardwarePreset, selectedHardware } from './hardware-library.js?v=20261106aq';
+
+const preparationOnlyRunners = new Set(['runner-richelieu-828', 'runner-blum-563h', 'runner-blum-563f', 'runner-blum-763h']);
+
+function hasRunnerModels(config) {
+  const panels = computePanels(config);
+  const fronts = panels.filter(panel => panel.type === 'drawer');
+  return fronts.length > 0 && fronts.every(front => {
+    const movingRails = panels.filter(panel => panel.id.startsWith(`${front.id}-`))
+      .flatMap(panel => panel.hardwareModels || [])
+      .filter(model => model.stage === 'moving' || model.model?.endsWith('-moving'));
+    return movingRails.length === 2;
+  });
+}
+
+function fittedHardwareConfig(config, preset) {
+  if (preparationOnlyRunners.has(preset.id)) return null;
+  const next = applyHardwarePreset(config, preset.id);
+  if (preset.category === 'hingeCup' && preset.pairedPreset) {
+    const panels = computePanels(next);
+    const doors = panels.filter(panel => panel.type === 'door');
+    if (!doors.length || !doors.every(door => door.hardwareModels?.length &&
+      door.holes.some(hole => hole.purpose === 'hinge-cup-fixing'))) return null;
+  }
+  if (preset.category === 'handles' && preset.model) {
+    const fronts = computePanels(next).filter(panel => panel.type === 'door' || panel.type === 'drawer');
+    if (!fronts.length || !fronts.every(panel => panel.hardwareModels?.some(model => model.model === preset.model) &&
+      panel.holes.some(hole => hole.purpose === 'handle'))) return null;
+  }
+  if (preset.category === 'runners' && preset.lengths) {
+    const preferred = next.hardware.runnerLength;
+    for (const length of [preferred, ...preset.lengths.filter(value => value < preferred).reverse()]) {
+      next.hardware.runnerLength = length;
+      if (hasRunnerModels(next)) return next;
+    }
+    return null;
+  }
+  return next;
+}
 
 const SECTION_ICONS = {
   'Cabinet Type': 'fa-cube',
@@ -870,9 +908,35 @@ export class CabinetForm {
       const select = this._createSelect([
         ...(category !== 'joinery' ? [{ value: 'custom', label: 'Custom / existing dimensions' }]
           : !current && !matchingJoint ? [{ value: 'custom', label: `${jointLabel} — edited dimensions` }] : []),
-        ...presets.map(p => ({ value: p.id, label: p.label + (p.status === 'fit' ? ' (fit only)' : '') })),
+        ...presets.filter(p => !preparationOnlyRunners.has(p.id) || p.id === current)
+          .map(p => ({ value: p.id, label: p.label + (p.status === 'fit' ? ' (fit only)' : '') })),
       ], { 'data-key': `hardware.library.${category}`, 'aria-label': `${HARDWARE_CATEGORIES[category]} library` });
       select.value = current || matchingJoint?.id || 'custom';
+      if (select.options && ['hingeCup', 'handles', 'runners'].includes(category)) {
+        const checkedModels = new Map();
+        let revision = 0;
+        const refreshChoices = config => {
+          const refresh = ++revision;
+          for (const option of select.options) {
+            const choice = hardwarePreset(option.value);
+            if (!choice) continue;
+            const fits = Boolean(fittedHardwareConfig(config, choice));
+            option.hidden = option.value !== select.value && !fits;
+            option.disabled = option.hidden;
+            if (!fits || option.value === select.value || choice.pairedPreset !== 'plate-blum-173h7100') continue;
+            const sku = choice.blumInset ? 'blum-71b3750' : 'blum-71b3550';
+            if (checkedModels.get(sku) === true) continue;
+            option.hidden = option.disabled = true;
+            import('./hardware-view.js?v=20261106as').then(({loadBlumModel}) => loadBlumModel(sku)).then(model => {
+              if (!model) return;
+              checkedModels.set(sku, true);
+              if (revision === refresh) option.hidden = option.disabled = false;
+            }).catch(() => {});
+          }
+        };
+        refreshChoices(this.config);
+        select.addEventListener('focus', () => refreshChoices(this.getConfig()));
+      }
       const preset = hardwarePreset(select.value);
       const note = this._makeBlurb(preset?.note || '');
       note.dataset.hardwareNote = category;
@@ -903,7 +967,12 @@ export class CabinetForm {
       select.addEventListener('change', event => {
         event.stopPropagation();
         this.config = this.getConfig();
-        if (select.value !== 'custom') this.config = applyHardwarePreset(this.config, select.value);
+        if (select.value !== 'custom') {
+          const choice = hardwarePreset(select.value);
+          this.config = fittedHardwareConfig(this.config, choice) || {
+            ...this.config, hardware: {...this.config.hardware, library: {...this.config.hardware.library, [category]: current || 'custom'}},
+          };
+        }
         const scroll = this.container.scrollTop;
         this._render();
         this.container.scrollTop = scroll;
@@ -928,6 +997,17 @@ export class CabinetForm {
         const length = this._createSelect(lengths.map(value => ({ value: String(value), label: dimension(value) })),
           { 'data-key': 'hardware.runnerLength', 'data-number': 'true', 'aria-label': 'Slide length' });
         length.value = String(current);
+        if (length.options && !preparationOnlyRunners.has(preset.id)) {
+          const refreshLengths = config => {
+            for (const option of length.options) {
+              option.hidden = option.disabled = option.value !== length.value && !hasRunnerModels({
+                ...config, hardware: {...config.hardware, runnerLength: Number(option.value)},
+              });
+            }
+          };
+          refreshLengths(this.config);
+          length.addEventListener('focus', () => refreshLengths(this.getConfig()));
+        }
         fields.push(this._makeField('Slide length', length));
       }
       if (category === 'runners' && ['hettich-quadro-2d','hettich-quadro-5d'].includes(this.config.hardware.runnerMode)) {
@@ -1192,12 +1272,7 @@ export class CabinetForm {
       const runnerMode = this._createSelect([
         { value: 'reference', label: 'Custom clearance / reference holes' },
         { value: 'side-mount', label: 'Side mount / length + mounting pilots' },
-        { value: 'richelieu-828', label: 'Richelieu 828 / box cuts and manual fitting' },
-        { value: 'hettich-quadro-5d', label: 'Quadro 5D V6 / Silent System preparation' },
-        { value: 'hettich-quadro-2d', label: 'Quadro 2D V6 / January 2025 preparation' },
-        { value: 'blum-tandem-563f', label: 'TANDEM 563F / drawer preparation' },
-        { value: 'blum-tandem-563h', label: 'TANDEM 563H / drawer preparation' },
-        { value: 'blum-movento-763h', label: 'MOVENTO 763H / drawer preparation' },
+        ...(undermountPreset ? [{ value: this.config.hardware.runnerMode, label: hardwarePreset(undermountPreset).label }] : []),
       ], { 'data-key': 'hardware.runnerMode', 'aria-label': 'Runner output' });
       runnerMode.value = this.config.hardware.runnerMode || 'reference';
       runnerMode.addEventListener('change', e => {

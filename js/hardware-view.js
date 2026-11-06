@@ -15,7 +15,7 @@ const blumPreviewFiles = {
 };
 const previewRequests = new Map();
 
-function loadBlumModel(model) {
+export function loadBlumModel(model) {
   const file = blumPreviewFiles[model];
   if (!previewRequests.has(file)) {
     const url = new URL(`../assets/hardware/private/${file}.json?v=20261106ao`, import.meta.url);
