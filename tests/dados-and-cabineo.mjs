@@ -5,6 +5,7 @@ import { buildNestingPlan } from '../js/nesting.js';
 import { addDados } from '../js/dado-joinery.js';
 import { panelSolidData } from '../js/panel-solid.js';
 import { createProjectFromConfig, normalizeProject, buildProjectPanels } from '../js/project-io.js';
+import { applyGlobalMaterialSelections } from '../js/material-presets.js';
 globalThis.window = {};
 const { panelToDxf, sheetToDxf, machiningSchedule } = await import('../js/dxf-writer.js');
 const near = (a,b) => assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
@@ -41,6 +42,17 @@ for (const category of ['base','wall']) for (const hasTop of [false,true]) for (
   const restored=normalizeProject(JSON.parse(JSON.stringify(createProjectFromConfig(c))));
   near(computePanels(restored.cabinets[0].config).find(p=>p.id==='bottom').cutWidth,c.width-2*T+12);
 }
+const measured = applyHardwarePreset(defaultCabinet(), 'dado');
+measured.materials = applyGlobalMaterialSelections({
+  ...measured.materials,
+  stockSelections: { carcass: { material: 'Melamine', colour: 'White', thickness: 17.78, units: 'imperial', measured: true } },
+}, measured.drawers);
+const measuredProject = normalizeProject(JSON.parse(JSON.stringify(createProjectFromConfig(measured))));
+const measuredParts = computePanels(measuredProject.cabinets[0].config);
+near(measuredParts.find(p => p.id === 'bottom').cutThickness, 17.78);
+near(measuredParts.find(p => p.id === 'side-left').grooves.find(g => g.mate === 'bottom').height, 17.98);
+assert.equal(measuredProject.cabinets[0].config.materials.stockSelections.carcass.measured, true);
+
 const badDado=applyHardwarePreset(defaultCabinet(),'dado');
 badDado.hardware.dadoDepth=10;
 assert.ok(validateCabinet(badDado).some(w=>w.includes('Dados omitted')));

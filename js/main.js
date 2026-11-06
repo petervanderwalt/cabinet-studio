@@ -7,7 +7,7 @@ import { CabinetForm } from './form-ui.js?v=20261105i';
 import { computePanels } from './cabinet-math.js?v=20261105i';
 import { downloadManufacturingZip, downloadPanelDxf, downloadSheetDxf, downloadProjectFile } from './dxf-writer.js?v=20261105i';
 import { buildNestingPlan } from './nesting.js?v=20261105h';
-import { applyGlobalMaterialSelections, STOCK_FIELDS, sharedStockChoices, splitStockAppearance } from './material-presets.js?v=20261020f';
+import { applyGlobalMaterialSelections, STOCK_FIELDS, STOCK_THICKNESSES, sharedStockChoices, splitStockAppearance } from './material-presets.js?v=20261020f';
 import {
   addCabinet,
   buildProjectPanels,
@@ -607,9 +607,8 @@ function buildStockSelect(label, stockType, currentValue, currentThickness) {
   const choices = sharedStockChoices(currentProject.cabinets.map(c=>c.config.materials));
   const names = choices.materials;
   const colours = choices.colours;
-  const selectedThickness = choices.thicknesses.find(t => Math.abs(t.thickness - currentThickness) < 1e-8);
+  const selectedThickness = !selection?.measured && STOCK_THICKNESSES.find(t => Math.abs(t.thickness - currentThickness) < 1e-8);
   const thicknessOptions = ['metric', 'imperial'].map(units => `<optgroup label="${units === 'metric' ? 'Metric' : 'Imperial'}">${choices.thicknesses.filter(t=>t.units===units).map(t=>`<option value="${t.value}"${t===selectedThickness ? ' selected' : ''}>${t.label}</option>`).join('')}</optgroup>`).join('');
-  const existing = selectedThickness ? '' : `<optgroup label="Existing thickness"><option value="existing" selected>${escapeHtml(dimension(currentThickness))}</option></optgroup>`;
   return `<details class="nesting-stock-group" data-stock-type="${stockType}"${openStockType === stockType ? ' open' : ''}>
     <summary><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(material)} · ${escapeHtml(colour)} · ${escapeHtml(dimension(currentThickness))}</small></span><i class="fa-solid fa-plus" aria-hidden="true"></i></summary>
     <div class="nesting-stock-pair">
@@ -620,8 +619,15 @@ function buildStockSelect(label, stockType, currentValue, currentThickness) {
         <select data-stock-colour aria-label="${escapeHtml(label)} colour">${colours.map(name=>`<option value="${escapeHtml(name)}"${name===colour ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select>
       </label>
       <label class="nesting-stock-field"><span>Thickness</span>
-        <select data-stock-thickness aria-label="${escapeHtml(label)} thickness">${thicknessOptions}${existing}</select>
+        <select data-stock-thickness aria-label="${escapeHtml(label)} thickness">${thicknessOptions}<option value="measured"${selectedThickness ? '' : ' selected'}>Custom / measured</option></select>
       </label>
+      ${selectedThickness ? '' : `<label class="nesting-stock-field nesting-measured-thickness">
+        <span>Measured thickness</span>
+        <div class="nesting-inline-input">
+          <input type="number" step="any" data-stock-measured value="${escapeHtml(String(currentThickness))}">
+          <em>${unitLabel()}</em>
+        </div>
+      </label>`}
     </div>
   </details>`;
 }
@@ -675,21 +681,35 @@ function bindNestingViewEvents(root, plan) {
         for (const other of root.querySelectorAll('[data-stock-type]')) if (other !== group) other.open = false;
       } else if (openStockType === group.dataset.stockType) openStockType = null;
     });
-    const commit = () => {
+    const measuredInput = group.querySelector('[data-stock-measured]');
+    if (measuredInput) lengthInput(measuredInput);
+    const commit = (event) => {
       const type = group.dataset.stockType;
       const choices = sharedStockChoices(currentProject.cabinets.map(c=>c.config.materials));
       const chosen = choices.thicknesses.find(t=>t.value===group.querySelector('[data-stock-thickness]').value);
       const fields = STOCK_FIELDS[type];
+      const editingThickness = event.target === measuredInput;
+      const thickness = chosen?.thickness ?? (editingThickness
+        ? Number(readLength(measuredInput).toPrecision(15))
+        : currentConfig.materials[fields.thickness]);
+      if (!Number.isFinite(thickness) || thickness <= 0) {
+        measuredInput?.setCustomValidity('Enter a thickness greater than zero.');
+        measuredInput?.reportValidity();
+        return;
+      }
+      const previousUnits = currentConfig.materials.stockSelections?.[type]?.units ?? getUnits();
       const selection = {
         material: group.querySelector('[data-stock-material]').value,
         colour: group.querySelector('[data-stock-colour]').value,
-        thickness: chosen?.thickness ?? currentConfig.materials[fields.thickness],
-        units: chosen?.units ?? getUnits(),
+        thickness,
+        units: chosen?.units ?? (editingThickness ? getUnits() : previousUnits),
+        measured: !chosen,
       };
       const materials = { ...currentConfig.materials, stockSelections: { ...currentConfig.materials.stockSelections, [type]:selection } };
       form.importConfig({ ...currentConfig, materials:applyGlobalMaterialSelections(materials, currentConfig.drawers) });
     };
     for (const select of group.querySelectorAll('select')) select.addEventListener('change', commit);
+    measuredInput?.addEventListener('change', commit);
   }
 
   for (const button of root.querySelectorAll('[data-sheet-export]')) {
